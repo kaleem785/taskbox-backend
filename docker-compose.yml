@@ -1,0 +1,48 @@
+# Local development infra for taskbox-backend.
+#
+# Usage:
+#   docker compose up -d        # start postgres + redis in the background
+#   docker compose logs -f      # tail logs
+#   docker compose down         # stop containers (data preserved in volumes)
+#   docker compose down -v      # stop containers AND wipe data
+#
+# Ports are non-standard so they don't clash with anything else you might run.
+# Match these in .env:
+#   DATABASE_URL=postgresql://taskbox:taskbox@127.0.0.1:55432/taskbox?sslmode=disable
+#   DIRECT_URL=postgresql://taskbox:taskbox@127.0.0.1:55432/taskbox?sslmode=disable
+#   REDIS_URL=redis://127.0.0.1:56379
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: taskbox
+      POSTGRES_PASSWORD: taskbox
+      POSTGRES_DB: taskbox
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskbox -d taskbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "56379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:

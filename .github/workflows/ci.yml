@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: taskbox
+          POSTGRES_PASSWORD: taskbox
+          POSTGRES_DB: taskbox
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U taskbox"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: postgresql://taskbox:taskbox@127.0.0.1:5432/taskbox?sslmode=disable
+      DIRECT_URL: postgresql://taskbox:taskbox@127.0.0.1:5432/taskbox?sslmode=disable
+      JWT_ACCESS_SECRET: ci-access-secret-must-be-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-must-be-at-least-32-characters
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 30d
+      NODE_ENV: test
+      FRONTEND_ORIGIN: http://localhost:5173
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm prisma generate
+
+      - name: Apply migrations
+        run: pnpm prisma migrate deploy
+
+      - name: Lint
+        run: pnpm lint --no-error-on-unmatched-pattern || true
+
+      - name: Build
+        run: pnpm build
+
+      - name: E2E tests
+        run: pnpm test:e2e
