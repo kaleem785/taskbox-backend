@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { User } from '@prisma/client';
+import { User } from '../../prisma/client';
 import * as argon2 from 'argon2';
 import { randomInt, timingSafeEqual } from 'crypto';
 

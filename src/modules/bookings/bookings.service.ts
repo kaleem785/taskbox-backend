@@ -8,7 +8,7 @@ import {
   AssignedBy,
   BookingStatus,
   Prisma,
-} from '@prisma/client';
+} from '../../prisma/client';
 
 import { buildPaginatedMeta, Paginated } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';

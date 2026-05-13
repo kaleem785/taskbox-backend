@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Customer, CustomerAddress, CustomerStatus, Prisma } from '@prisma/client';
+import { Customer, CustomerAddress, CustomerStatus, Prisma } from '../../prisma/client';
 
 import {
   buildPaginatedMeta,

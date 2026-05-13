@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { AddressLabel, CustomerStatus } from '@prisma/client';
+import { AddressLabel, CustomerStatus } from '../../../prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,

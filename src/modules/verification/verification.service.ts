@@ -12,7 +12,7 @@ import {
   DocumentStatus,
   DocumentType,
   Prisma,
-} from '@prisma/client';
+} from '../../prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { canTransition } from './state-machine';

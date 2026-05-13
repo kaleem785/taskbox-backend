@@ -1,7 +1,16 @@
-import { PrismaClient, Role } from '@prisma/client';
+import 'dotenv/config';
+import { PrismaClient, Role } from '../src/prisma/client';
+import { createPrismaAdapter } from '../src/prisma/prisma-adapter';
 import * as argon2 from 'argon2';
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL is required to seed the database');
+}
+
+const prisma = new PrismaClient({
+  adapter: createPrismaAdapter(connectionString),
+});
 
 // ── Geography seed (mirrors TaskBox-Admin/src/app/data/pakistanCities.ts) ────
 

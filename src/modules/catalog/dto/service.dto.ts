@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { DurationUnit, PriceType, SkillLevel } from '@prisma/client';
+import { DurationUnit, PriceType, SkillLevel } from '../../../prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,

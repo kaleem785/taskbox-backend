@@ -12,7 +12,7 @@ import {
   CommissionSettings,
   CommissionStatus,
   Prisma,
-} from '@prisma/client';
+} from '../../prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../notifications/email.service';

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { City, Zone, ZoneArea } from '@prisma/client';
+import { City, Zone, ZoneArea } from '../../prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCityDto, UpdateCityDto } from './dto/city.dto';

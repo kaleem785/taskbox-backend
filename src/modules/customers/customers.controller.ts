@@ -9,7 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { Role } from '../../prisma/client';
 
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CustomerQueryDto } from './dto/customer-query.dto';

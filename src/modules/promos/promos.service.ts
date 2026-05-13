@@ -3,7 +3,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { PromoDiscountType, PromoStatus } from '@prisma/client';
+import { PromoDiscountType, PromoStatus } from '../../prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import {

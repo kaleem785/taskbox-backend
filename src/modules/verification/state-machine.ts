@@ -1,4 +1,4 @@
-import { ApplicantStatus } from '@prisma/client';
+import { ApplicantStatus } from '../../prisma/client';
 
 /**
  * Allowed transitions for the verification pipeline.
