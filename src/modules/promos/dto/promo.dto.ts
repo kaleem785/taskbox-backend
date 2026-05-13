@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { PromoDiscountType, PromoStatus } from '@prisma/client';
+import { PromoDiscountType, PromoStatus } from '../../../prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,

@@ -2,6 +2,7 @@
 
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.17.0 --activate
 COPY package.json pnpm-lock.yaml* ./
 COPY prisma ./prisma
@@ -9,12 +10,13 @@ RUN pnpm install --frozen-lockfile
 
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.17.0 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm prisma generate
+RUN DATABASE_URL="postgresql://user:password@localhost:5432/taskbox" pnpm prisma generate
 RUN pnpm build
-RUN pnpm prune --prod
+RUN CI=true pnpm prune --prod
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app

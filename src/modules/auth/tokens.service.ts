@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Role, User } from '@prisma/client';
+import { Role, User } from '../../prisma/client';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
 

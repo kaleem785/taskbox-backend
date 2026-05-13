@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Role, User } from '@prisma/client';
+import { Role, User } from '../../prisma/client';
 import * as argon2 from 'argon2';
 
 import { PrismaService } from '../../prisma/prisma.service';

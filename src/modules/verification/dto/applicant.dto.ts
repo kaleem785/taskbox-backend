@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { ApplicantExperience, ApplicantStatus, DocumentStatus, DocumentType } from '@prisma/client';
+import { ApplicantExperience, ApplicantStatus, DocumentStatus, DocumentType } from '../../../prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,

@@ -1,4 +1,4 @@
-import { BookingStatus } from '@prisma/client';
+import { BookingStatus } from '../../prisma/client';
 
 export const BOOKING_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   PENDING: [BookingStatus.AUTO_ASSIGNED, BookingStatus.CONFIRMED, BookingStatus.CANCELLED],

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { BookingStatus, CancelReason, PaymentStatus } from '@prisma/client';
+import { BookingStatus, CancelReason, PaymentStatus } from '../../../prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsDateString,

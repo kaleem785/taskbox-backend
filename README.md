@@ -6,7 +6,7 @@ NestJS API for the TaskBox service-marketplace platform. Powers the admin panel 
 
 - **NestJS 11** + TypeScript (strict)
 - **PostgreSQL** on [Neon](https://neon.tech) (branched: `main`, `staging`)
-- **Prisma 6** ORM with migrations
+- **Prisma 7** ORM with migrations
 - **JWT auth** (access + rotating refresh) with `argon2` password hashing
 - **Cloudflare R2** for file uploads (presigned URLs, S3-compatible)
 - **Socket.io** for real-time dispatch and pipeline updates
@@ -22,7 +22,7 @@ docker compose up -d       # local postgres on :55432, redis on :56379
 pnpm install
 pnpm prisma generate
 pnpm prisma migrate dev    # apply migrations
-pnpm prisma:seed           # admin + examiner + cities + zones + categories
+pnpm prisma:seed           # runs prisma db seed
 pnpm start:dev             # http://localhost:3000  •  Swagger at /docs
 ```
 

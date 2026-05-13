@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { AssignedBy, BookingStatus, Partner } from '@prisma/client';
+import { AssignedBy, BookingStatus, Partner } from '../../prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 

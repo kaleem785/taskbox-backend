@@ -8,7 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { DocumentType, Role } from '@prisma/client';
+import { DocumentType, Role } from '../../prisma/client';
 
 import {
   AuthUser,
