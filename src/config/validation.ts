@@ -5,7 +5,21 @@ export const validationSchema = Joi.object({
     .valid('development', 'production', 'test')
     .default('development'),
   PORT: Joi.number().port().default(3000),
-  FRONTEND_ORIGIN: Joi.string().uri().default('http://localhost:5173'),
+  FRONTEND_ORIGIN: Joi.string()
+    .custom((value: string, helpers) => {
+      const parts = value
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (parts.length === 0) return helpers.error('any.invalid');
+      for (const part of parts) {
+        if (part === '*') continue;
+        const { error } = Joi.string().uri().validate(part);
+        if (error) return helpers.error('any.invalid');
+      }
+      return value;
+    }, 'comma-separated URI list')
+    .default('http://localhost:5173'),
 
   DATABASE_URL: Joi.string().uri({ scheme: ['postgresql', 'postgres'] }).required(),
   DIRECT_URL: Joi.string().uri({ scheme: ['postgresql', 'postgres'] }).optional(),
