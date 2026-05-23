@@ -39,8 +39,8 @@ const CITIES_BY_PROVINCE: Record<string, string[]> = {
   'Federal Capital': ['Islamabad'],
 };
 
-const ZONES_BY_CITY_SLUG: Record<string, string[]> = {
-  lahore: [
+const ZONES_BY_CITY_NAME: Record<string, string[]> = {
+  Lahore: [
     'Gulberg',
     'DHA Phase 1',
     'DHA Phase 2',
@@ -51,7 +51,7 @@ const ZONES_BY_CITY_SLUG: Record<string, string[]> = {
     'Iqbal Town',
     'Bahria Town',
   ],
-  karachi: [
+  Karachi: [
     'Clifton',
     'Defence',
     'Gulshan-e-Iqbal',
@@ -61,7 +61,7 @@ const ZONES_BY_CITY_SLUG: Record<string, string[]> = {
     'Gulistan-e-Johar',
     'PECHS',
   ],
-  islamabad: [
+  Islamabad: [
     'F-6',
     'F-7',
     'F-8',
@@ -232,11 +232,10 @@ async function seedCities() {
   let count = 0;
   for (const [province, cityNames] of Object.entries(CITIES_BY_PROVINCE)) {
     for (const name of cityNames) {
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       await prisma.city.upsert({
-        where: { slug },
+        where: { name_province: { name, province } },
         update: {},
-        create: { slug, name, province },
+        create: { name, province },
       });
       count++;
     }
@@ -247,15 +246,16 @@ async function seedCities() {
 async function seedZones() {
   let zoneCount = 0;
   let areaCount = 0;
-  for (const [citySlug, zoneNames] of Object.entries(ZONES_BY_CITY_SLUG)) {
-    const city = await prisma.city.findUnique({ where: { slug: citySlug } });
+  for (const [cityName, zoneNames] of Object.entries(ZONES_BY_CITY_NAME)) {
+    // Seed data has unique city names across provinces, so findFirst is fine.
+    const city = await prisma.city.findFirst({ where: { name: cityName } });
     if (!city) continue;
     for (let i = 0; i < zoneNames.length; i++) {
       const name = zoneNames[i];
       const zone = await prisma.zone.upsert({
         where: { cityId_name: { cityId: city.id, name } },
         update: {},
-        create: { cityId: city.id, name, displayOrder: i },
+        create: { cityId: city.id, name },
       });
       zoneCount++;
       // Seed one area equal to the zone name as a sensible default

@@ -170,7 +170,6 @@ model Service {
 
 model City {
   id        String   @id @default(cuid())
-  slug      String   @unique
   name      String
   province  String
   active    Boolean  @default(true)
@@ -184,19 +183,19 @@ model City {
   partners          Partner[]
   applicants        Applicant[]
 
+  @@unique([name, province])
   @@index([province])
   @@map("cities")
 }
 
 model Zone {
-  id           String   @id @default(cuid())
-  cityId       String
-  name         String
-  color        String?
-  displayOrder Int      @default(0)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  cityId    String
+  name      String
+  color     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   city              City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
   areas             ZoneArea[]

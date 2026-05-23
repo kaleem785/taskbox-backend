@@ -26,13 +26,6 @@ export class CreateZoneDto {
   @IsString()
   color?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  displayOrder?: number;
-
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()
