@@ -176,7 +176,7 @@ model City {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  zones             Zone[]
+  areas             Area[]
   services          ServiceCity[]
   customers         Customer[]
   customerAddresses CustomerAddress[]
@@ -188,7 +188,7 @@ model City {
   @@map("cities")
 }
 
-model Zone {
+model Area {
   id        String   @id @default(cuid())
   cityId    String
   name      String
@@ -197,12 +197,29 @@ model Zone {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  city              City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  assignedAddresses CustomerAddress[] @relation("ZoneAssignedAddresses")
-  partners          PartnerZone[]
+  city  City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  zones Zone[]
 
   @@unique([cityId, name])
   @@index([cityId])
+  @@map("areas")
+}
+
+model Zone {
+  id        String   @id @default(cuid())
+  areaId    String
+  name      String
+  color     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  area              Area              @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  assignedAddresses CustomerAddress[] @relation("ZoneAssignedAddresses")
+  partners          PartnerZone[]
+
+  @@unique([areaId, name])
+  @@index([areaId])
   @@map("zones")
 }
 

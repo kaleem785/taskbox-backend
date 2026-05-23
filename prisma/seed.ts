@@ -39,7 +39,7 @@ const CITIES_BY_PROVINCE: Record<string, string[]> = {
   'Federal Capital': ['Islamabad'],
 };
 
-const ZONES_BY_CITY_NAME: Record<string, string[]> = {
+const AREAS_BY_CITY_NAME: Record<string, string[]> = {
   Lahore: [
     'Gulberg',
     'DHA Phase 1',
@@ -243,22 +243,32 @@ async function seedCities() {
   console.log(`  Cities: ${count}`);
 }
 
-async function seedZones() {
+async function seedAreasAndZones() {
+  let areaCount = 0;
   let zoneCount = 0;
-  for (const [cityName, zoneNames] of Object.entries(ZONES_BY_CITY_NAME)) {
+  const zoneSuffixes = ['Block A', 'Block B', 'Block C'];
+  for (const [cityName, areaNames] of Object.entries(AREAS_BY_CITY_NAME)) {
     // Seed data has unique city names across provinces, so findFirst is fine.
     const city = await prisma.city.findFirst({ where: { name: cityName } });
     if (!city) continue;
-    for (const name of zoneNames) {
-      await prisma.zone.upsert({
+    for (const name of areaNames) {
+      const area = await prisma.area.upsert({
         where: { cityId_name: { cityId: city.id, name } },
         update: {},
         create: { cityId: city.id, name },
       });
-      zoneCount++;
+      areaCount++;
+      for (const suffix of zoneSuffixes) {
+        await prisma.zone.upsert({
+          where: { areaId_name: { areaId: area.id, name: suffix } },
+          update: {},
+          create: { areaId: area.id, name: suffix },
+        });
+        zoneCount++;
+      }
     }
   }
-  console.log(`  Zones: ${zoneCount}`);
+  console.log(`  Areas: ${areaCount}, Zones: ${zoneCount}`);
 }
 
 async function seedCatalog() {
@@ -374,11 +384,12 @@ async function seedPartners(): Promise<SeededPartner[]> {
   // Only cities that actually have zones can host partners.
   const zones = await prisma.zone.findMany({
     where: { active: true },
-    select: { id: true, cityId: true },
+    select: { id: true, area: { select: { cityId: true } } },
   });
   const zonesByCity = new Map<string, string[]>();
   for (const z of zones) {
-    zonesByCity.set(z.cityId, [...(zonesByCity.get(z.cityId) ?? []), z.id]);
+    const cityId = z.area.cityId;
+    zonesByCity.set(cityId, [...(zonesByCity.get(cityId) ?? []), z.id]);
   }
   const cityIds = [...zonesByCity.keys()];
 
@@ -426,7 +437,17 @@ type SeededCustomer = { id: string; addresses: SeededAddress[] };
 async function seedCustomers(): Promise<SeededCustomer[]> {
   const zones = await prisma.zone.findMany({
     where: { active: true },
-    select: { id: true, name: true, cityId: true, city: { select: { province: true } } },
+    select: {
+      id: true,
+      name: true,
+      area: {
+        select: {
+          name: true,
+          cityId: true,
+          city: { select: { province: true } },
+        },
+      },
+    },
   });
 
   const customers: SeededCustomer[] = [];
@@ -437,14 +458,14 @@ async function seedCustomers(): Promise<SeededCustomer[]> {
         name: fullName(i + 3),
         phone: phone(2000 + i),
         email: `customer${i}@example.pk`,
-        cityId: zone.cityId,
+        cityId: zone.area.cityId,
         addresses: {
           create: {
             label: AddressLabel.HOME,
-            fullAddress: `House ${10 + i}, ${zone.name}`,
-            area: zone.name,
-            cityId: zone.cityId,
-            province: zone.city.province,
+            fullAddress: `House ${10 + i}, ${zone.area.name} ${zone.name}`,
+            area: zone.area.name,
+            cityId: zone.area.cityId,
+            province: zone.area.city.province,
             assignedZoneId: zone.id,
             isDefault: true,
           },
@@ -545,7 +566,7 @@ async function main() {
   console.log('Seeding TaskBox database…');
   await seedUsers();
   await seedCities();
-  await seedZones();
+  await seedAreasAndZones();
   await seedCatalog();
   await resetTransactionalData();
   const services = await seedServices();

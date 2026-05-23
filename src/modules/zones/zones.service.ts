@@ -3,9 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { City, Zone } from '../../prisma/client';
+import { Area, City, Zone } from '../../prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateAreaDto, UpdateAreaDto } from './dto/area.dto';
 import { CreateCityDto, UpdateCityDto } from './dto/city.dto';
 import { CreateZoneDto, UpdateZoneDto } from './dto/zone.dto';
 
@@ -66,10 +67,10 @@ export class ZonesService {
     return this.prisma.city.update({ where: { id }, data: { active: false } });
   }
 
-  // ── Zones ─────────────────────────────────────────────────────────────────
+  // ── Areas ─────────────────────────────────────────────────────────────────
 
-  listZones(opts: { cityId?: string; activeOnly?: boolean } = {}) {
-    return this.prisma.zone.findMany({
+  listAreas(opts: { cityId?: string; activeOnly?: boolean } = {}) {
+    return this.prisma.area.findMany({
       where: {
         ...(opts.cityId ? { cityId: opts.cityId } : {}),
         ...(opts.activeOnly ? { active: true } : {}),
@@ -81,11 +82,81 @@ export class ZonesService {
     });
   }
 
+  async getArea(id: string) {
+    const area = await this.prisma.area.findUnique({
+      where: { id },
+      include: {
+        city: { select: { id: true, name: true, province: true } },
+      },
+    });
+    if (!area) throw new NotFoundException('Area not found');
+    return area;
+  }
+
+  async createArea(input: CreateAreaDto): Promise<Area> {
+    const existing = await this.prisma.area.findUnique({
+      where: { cityId_name: { cityId: input.cityId, name: input.name } },
+    });
+
+    if (existing?.active) {
+      throw new ConflictException(
+        `Area "${input.name}" already exists in this city.`,
+      );
+    }
+
+    if (existing) {
+      return this.prisma.area.update({
+        where: { id: existing.id },
+        data: {
+          color: input.color ?? existing.color,
+          active: true,
+        },
+      });
+    }
+
+    return this.prisma.area.create({ data: input });
+  }
+
+  updateArea(id: string, input: UpdateAreaDto): Promise<Area> {
+    return this.prisma.area.update({ where: { id }, data: input });
+  }
+
+  deactivateArea(id: string): Promise<Area> {
+    return this.prisma.area.update({ where: { id }, data: { active: false } });
+  }
+
+  // ── Zones ─────────────────────────────────────────────────────────────────
+
+  listZones(opts: { areaId?: string; activeOnly?: boolean } = {}) {
+    return this.prisma.zone.findMany({
+      where: {
+        ...(opts.areaId ? { areaId: opts.areaId } : {}),
+        ...(opts.activeOnly ? { active: true } : {}),
+      },
+      orderBy: [{ name: 'asc' }],
+      include: {
+        area: {
+          select: {
+            id: true,
+            name: true,
+            city: { select: { id: true, name: true, province: true } },
+          },
+        },
+      },
+    });
+  }
+
   async getZone(id: string) {
     const zone = await this.prisma.zone.findUnique({
       where: { id },
       include: {
-        city: { select: { id: true, name: true, province: true } },
+        area: {
+          select: {
+            id: true,
+            name: true,
+            city: { select: { id: true, name: true, province: true } },
+          },
+        },
       },
     });
     if (!zone) throw new NotFoundException('Zone not found');
@@ -93,17 +164,16 @@ export class ZonesService {
   }
 
   /**
-   * Reactivate-on-conflict for zones (mirrors createCity). Keyed off
-   * @@unique([cityId, name]).
+   * Reactivate-on-conflict for zones. Keyed off @@unique([areaId, name]).
    */
   async createZone(input: CreateZoneDto): Promise<Zone> {
     const existing = await this.prisma.zone.findUnique({
-      where: { cityId_name: { cityId: input.cityId, name: input.name } },
+      where: { areaId_name: { areaId: input.areaId, name: input.name } },
     });
 
     if (existing?.active) {
       throw new ConflictException(
-        `Zone "${input.name}" already exists in this city.`,
+        `Zone "${input.name}" already exists in this area.`,
       );
     }
 

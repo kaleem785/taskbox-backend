@@ -66,7 +66,21 @@ export class PartnersService {
       include: {
         category: { select: { id: true, name: true } },
         city: { select: { id: true, name: true, province: true } },
-        zones: { include: { zone: { include: { city: { select: { name: true } } } } } },
+        zones: {
+          include: {
+            zone: {
+              include: {
+                area: {
+                  select: {
+                    id: true,
+                    name: true,
+                    city: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
     if (!partner) throw new NotFoundException('Partner not found');
