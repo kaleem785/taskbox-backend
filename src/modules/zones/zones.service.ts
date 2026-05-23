@@ -3,15 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { City, Zone, ZoneArea } from '../../prisma/client';
+import { City, Zone } from '../../prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCityDto, UpdateCityDto } from './dto/city.dto';
-import {
-  CreateZoneAreaDto,
-  CreateZoneDto,
-  UpdateZoneDto,
-} from './dto/zone.dto';
+import { CreateZoneDto, UpdateZoneDto } from './dto/zone.dto';
 
 @Injectable()
 export class ZonesService {
@@ -81,8 +77,6 @@ export class ZonesService {
       orderBy: [{ name: 'asc' }],
       include: {
         city: { select: { id: true, name: true, province: true } },
-        areas: { orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }] },
-        _count: { select: { areas: true } },
       },
     });
   }
@@ -92,7 +86,6 @@ export class ZonesService {
       where: { id },
       include: {
         city: { select: { id: true, name: true, province: true } },
-        areas: { orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }] },
       },
     });
     if (!zone) throw new NotFoundException('Zone not found');
@@ -101,20 +94,16 @@ export class ZonesService {
 
   /**
    * Reactivate-on-conflict for zones (mirrors createCity). Keyed off
-   * @@unique([cityId, name]). Seed `areas` only when actually creating a new
-   * zone — reactivating shouldn't silently inject areas into a row that
-   * already has its own history.
+   * @@unique([cityId, name]).
    */
   async createZone(input: CreateZoneDto): Promise<Zone> {
-    const { areas, ...rest } = input;
-
     const existing = await this.prisma.zone.findUnique({
-      where: { cityId_name: { cityId: rest.cityId, name: rest.name } },
+      where: { cityId_name: { cityId: input.cityId, name: input.name } },
     });
 
     if (existing?.active) {
       throw new ConflictException(
-        `Zone "${rest.name}" already exists in this city.`,
+        `Zone "${input.name}" already exists in this city.`,
       );
     }
 
@@ -122,41 +111,20 @@ export class ZonesService {
       return this.prisma.zone.update({
         where: { id: existing.id },
         data: {
-          color: rest.color ?? existing.color,
+          color: input.color ?? existing.color,
           active: true,
         },
       });
     }
 
-    return this.prisma.zone.create({
-      data: {
-        ...rest,
-        areas: areas?.length
-          ? {
-              create: areas.map((name, i) => ({ name, displayOrder: i })),
-            }
-          : undefined,
-      },
-    });
+    return this.prisma.zone.create({ data: input });
   }
 
   updateZone(id: string, input: UpdateZoneDto): Promise<Zone> {
-    const { areas: _ignore, ...rest } = input;
-    return this.prisma.zone.update({ where: { id }, data: rest });
+    return this.prisma.zone.update({ where: { id }, data: input });
   }
 
   deactivateZone(id: string): Promise<Zone> {
     return this.prisma.zone.update({ where: { id }, data: { active: false } });
-  }
-
-  // ── Zone areas ────────────────────────────────────────────────────────────
-
-  async addArea(zoneId: string, input: CreateZoneAreaDto): Promise<ZoneArea> {
-    await this.getZone(zoneId);
-    return this.prisma.zoneArea.create({ data: { zoneId, ...input } });
-  }
-
-  async removeArea(areaId: string): Promise<void> {
-    await this.prisma.zoneArea.delete({ where: { id: areaId } });
   }
 }

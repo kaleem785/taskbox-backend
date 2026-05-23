@@ -245,33 +245,20 @@ async function seedCities() {
 
 async function seedZones() {
   let zoneCount = 0;
-  let areaCount = 0;
   for (const [cityName, zoneNames] of Object.entries(ZONES_BY_CITY_NAME)) {
     // Seed data has unique city names across provinces, so findFirst is fine.
     const city = await prisma.city.findFirst({ where: { name: cityName } });
     if (!city) continue;
-    for (let i = 0; i < zoneNames.length; i++) {
-      const name = zoneNames[i];
-      const zone = await prisma.zone.upsert({
+    for (const name of zoneNames) {
+      await prisma.zone.upsert({
         where: { cityId_name: { cityId: city.id, name } },
         update: {},
         create: { cityId: city.id, name },
       });
       zoneCount++;
-      // Seed one area equal to the zone name as a sensible default
-      try {
-        await prisma.zoneArea.upsert({
-          where: { zoneId_name: { zoneId: zone.id, name } },
-          update: {},
-          create: { zoneId: zone.id, name },
-        });
-        areaCount++;
-      } catch {
-        /* already exists */
-      }
     }
   }
-  console.log(`  Zones: ${zoneCount}, ZoneAreas: ${areaCount}`);
+  console.log(`  Zones: ${zoneCount}`);
 }
 
 async function seedCatalog() {

@@ -198,27 +198,12 @@ model Zone {
   updatedAt DateTime @updatedAt
 
   city              City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  areas             ZoneArea[]
   assignedAddresses CustomerAddress[] @relation("ZoneAssignedAddresses")
   partners          PartnerZone[]
 
   @@unique([cityId, name])
   @@index([cityId])
   @@map("zones")
-}
-
-model ZoneArea {
-  id           String   @id @default(cuid())
-  zoneId       String
-  name         String
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
-
-  zone Zone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
-
-  @@unique([zoneId, name])
-  @@index([zoneId])
-  @@map("zone_areas")
 }
 
 model ServiceCity {

@@ -14,11 +14,7 @@ import { Role } from '../../prisma/client';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CreateCityDto, UpdateCityDto } from './dto/city.dto';
-import {
-  CreateZoneAreaDto,
-  CreateZoneDto,
-  UpdateZoneDto,
-} from './dto/zone.dto';
+import { CreateZoneDto, UpdateZoneDto } from './dto/zone.dto';
 import { ZonesService } from './zones.service';
 
 @ApiTags('zones')
@@ -100,19 +96,5 @@ export class ZonesController {
   @Delete('zones/:id')
   deactivateZone(@Param('id') id: string) {
     return this.zones.deactivateZone(id);
-  }
-
-  @ApiBearerAuth()
-  @Roles(Role.ADMIN)
-  @Post('zones/:id/areas')
-  addArea(@Param('id') id: string, @Body() dto: CreateZoneAreaDto) {
-    return this.zones.addArea(id, dto);
-  }
-
-  @ApiBearerAuth()
-  @Roles(Role.ADMIN)
-  @Delete('zone-areas/:areaId')
-  removeArea(@Param('areaId') areaId: string) {
-    return this.zones.removeArea(areaId);
   }
 }
