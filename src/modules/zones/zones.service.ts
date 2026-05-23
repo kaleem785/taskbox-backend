@@ -107,10 +107,7 @@ export class ZonesService {
     if (existing) {
       return this.prisma.area.update({
         where: { id: existing.id },
-        data: {
-          color: input.color ?? existing.color,
-          active: true,
-        },
+        data: { active: true },
       });
     }
 
@@ -180,10 +177,7 @@ export class ZonesService {
     if (existing) {
       return this.prisma.zone.update({
         where: { id: existing.id },
-        data: {
-          color: input.color ?? existing.color,
-          active: true,
-        },
+        data: { active: true },
       });
     }
 

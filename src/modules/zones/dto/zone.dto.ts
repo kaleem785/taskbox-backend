@@ -11,11 +11,6 @@ export class CreateZoneDto {
   @Length(1, 80)
   name!: string;
 
-  @ApiPropertyOptional({ example: '#FF6F00' })
-  @IsOptional()
-  @IsString()
-  color?: string;
-
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   @IsBoolean()
