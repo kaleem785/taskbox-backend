@@ -37,6 +37,11 @@ export class DashboardController {
     return this.dashboard.liveDispatch();
   }
 
+  @Get('zone-heatmap')
+  zoneHeatmap() {
+    return this.dashboard.zoneHeatmap();
+  }
+
   @Get('overdue-commissions')
   overdueCommissions() {
     return this.dashboard.overdueCommissions();

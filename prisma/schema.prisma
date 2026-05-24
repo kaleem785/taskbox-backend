@@ -170,56 +170,55 @@ model Service {
 
 model City {
   id        String   @id @default(cuid())
-  slug      String   @unique
   name      String
   province  String
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  zones             Zone[]
+  areas             Area[]
   services          ServiceCity[]
   customers         Customer[]
   customerAddresses CustomerAddress[]
   partners          Partner[]
   applicants        Applicant[]
 
+  @@unique([name, province])
   @@index([province])
   @@map("cities")
 }
 
-model Zone {
-  id           String   @id @default(cuid())
-  cityId       String
-  name         String
-  color        String?
-  displayOrder Int      @default(0)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+model Area {
+  id        String   @id @default(cuid())
+  cityId    String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  city              City              @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  areas             ZoneArea[]
-  assignedAddresses CustomerAddress[] @relation("ZoneAssignedAddresses")
-  partners          PartnerZone[]
+  city  City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  zones Zone[]
 
   @@unique([cityId, name])
   @@index([cityId])
-  @@map("zones")
+  @@map("areas")
 }
 
-model ZoneArea {
-  id           String   @id @default(cuid())
-  zoneId       String
-  name         String
-  displayOrder Int      @default(0)
-  createdAt    DateTime @default(now())
+model Zone {
+  id        String   @id @default(cuid())
+  areaId    String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  zone Zone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  area              Area              @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  assignedAddresses CustomerAddress[] @relation("ZoneAssignedAddresses")
+  partners          PartnerZone[]
 
-  @@unique([zoneId, name])
-  @@index([zoneId])
-  @@map("zone_areas")
+  @@unique([areaId, name])
+  @@index([areaId])
+  @@map("zones")
 }
 
 model ServiceCity {

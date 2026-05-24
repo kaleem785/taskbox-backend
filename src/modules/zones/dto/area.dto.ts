@@ -1,12 +1,12 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { IsBoolean, IsOptional, IsString, Length } from 'class-validator';
 
-export class CreateZoneDto {
+export class CreateAreaDto {
   @ApiProperty()
   @IsString()
-  areaId!: string;
+  cityId!: string;
 
-  @ApiProperty({ example: 'DHA Phase 5' })
+  @ApiProperty({ example: 'DHA' })
   @IsString()
   @Length(1, 80)
   name!: string;
@@ -17,4 +17,4 @@ export class CreateZoneDto {
   active?: boolean;
 }
 
-export class UpdateZoneDto extends PartialType(CreateZoneDto) {}
+export class UpdateAreaDto extends PartialType(CreateAreaDto) {}

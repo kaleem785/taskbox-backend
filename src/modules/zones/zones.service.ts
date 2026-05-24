@@ -1,13 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { City, Zone, ZoneArea } from '../../prisma/client';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Area, City, Zone } from '../../prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateAreaDto, UpdateAreaDto } from './dto/area.dto';
 import { CreateCityDto, UpdateCityDto } from './dto/city.dto';
-import {
-  CreateZoneAreaDto,
-  CreateZoneDto,
-  UpdateZoneDto,
-} from './dto/zone.dto';
+import { CreateZoneDto, UpdateZoneDto } from './dto/zone.dto';
 
 @Injectable()
 export class ZonesService {
@@ -31,8 +32,31 @@ export class ZonesService {
     return city;
   }
 
-  createCity(input: CreateCityDto): Promise<City> {
-    return this.prisma.city.create({ data: input });
+  /**
+   * Reactivate-on-conflict: if a city with the same (name, province) already
+   * exists, restore it (preserving id and all FK references from partners,
+   * bookings, etc.) instead of inserting a duplicate or throwing on the
+   * unique constraint. Reject only when the twin is already active.
+   */
+  async createCity(input: CreateCityDto): Promise<City> {
+    const existing = await this.prisma.city.findUnique({
+      where: { name_province: { name: input.name, province: input.province } },
+    });
+
+    if (existing?.active) {
+      throw new ConflictException(
+        `City "${input.name}" already exists in ${input.province}.`,
+      );
+    }
+
+    if (existing) {
+      return this.prisma.city.update({
+        where: { id: existing.id },
+        data: { name: input.name, province: input.province, active: true },
+      });
+    }
+
+    return this.prisma.city.create({ data: { ...input, active: true } });
   }
 
   updateCity(id: string, input: UpdateCityDto): Promise<City> {
@@ -43,19 +67,78 @@ export class ZonesService {
     return this.prisma.city.update({ where: { id }, data: { active: false } });
   }
 
-  // ── Zones ─────────────────────────────────────────────────────────────────
+  // ── Areas ─────────────────────────────────────────────────────────────────
 
-  listZones(opts: { cityId?: string; activeOnly?: boolean } = {}) {
-    return this.prisma.zone.findMany({
+  listAreas(opts: { cityId?: string; activeOnly?: boolean } = {}) {
+    return this.prisma.area.findMany({
       where: {
         ...(opts.cityId ? { cityId: opts.cityId } : {}),
         ...(opts.activeOnly ? { active: true } : {}),
       },
-      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
+      orderBy: [{ name: 'asc' }],
       include: {
         city: { select: { id: true, name: true, province: true } },
-        areas: { orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }] },
-        _count: { select: { areas: true } },
+      },
+    });
+  }
+
+  async getArea(id: string) {
+    const area = await this.prisma.area.findUnique({
+      where: { id },
+      include: {
+        city: { select: { id: true, name: true, province: true } },
+      },
+    });
+    if (!area) throw new NotFoundException('Area not found');
+    return area;
+  }
+
+  async createArea(input: CreateAreaDto): Promise<Area> {
+    const existing = await this.prisma.area.findUnique({
+      where: { cityId_name: { cityId: input.cityId, name: input.name } },
+    });
+
+    if (existing?.active) {
+      throw new ConflictException(
+        `Area "${input.name}" already exists in this city.`,
+      );
+    }
+
+    if (existing) {
+      return this.prisma.area.update({
+        where: { id: existing.id },
+        data: { active: true },
+      });
+    }
+
+    return this.prisma.area.create({ data: input });
+  }
+
+  updateArea(id: string, input: UpdateAreaDto): Promise<Area> {
+    return this.prisma.area.update({ where: { id }, data: input });
+  }
+
+  deactivateArea(id: string): Promise<Area> {
+    return this.prisma.area.update({ where: { id }, data: { active: false } });
+  }
+
+  // ── Zones ─────────────────────────────────────────────────────────────────
+
+  listZones(opts: { areaId?: string; activeOnly?: boolean } = {}) {
+    return this.prisma.zone.findMany({
+      where: {
+        ...(opts.areaId ? { areaId: opts.areaId } : {}),
+        ...(opts.activeOnly ? { active: true } : {}),
+      },
+      orderBy: [{ name: 'asc' }],
+      include: {
+        area: {
+          select: {
+            id: true,
+            name: true,
+            city: { select: { id: true, name: true, province: true } },
+          },
+        },
       },
     });
   }
@@ -64,45 +147,48 @@ export class ZonesService {
     const zone = await this.prisma.zone.findUnique({
       where: { id },
       include: {
-        city: { select: { id: true, name: true, province: true } },
-        areas: { orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }] },
+        area: {
+          select: {
+            id: true,
+            name: true,
+            city: { select: { id: true, name: true, province: true } },
+          },
+        },
       },
     });
     if (!zone) throw new NotFoundException('Zone not found');
     return zone;
   }
 
-  createZone(input: CreateZoneDto): Promise<Zone> {
-    const { areas, ...rest } = input;
-    return this.prisma.zone.create({
-      data: {
-        ...rest,
-        areas: areas?.length
-          ? {
-              create: areas.map((name, i) => ({ name, displayOrder: i })),
-            }
-          : undefined,
-      },
+  /**
+   * Reactivate-on-conflict for zones. Keyed off @@unique([areaId, name]).
+   */
+  async createZone(input: CreateZoneDto): Promise<Zone> {
+    const existing = await this.prisma.zone.findUnique({
+      where: { areaId_name: { areaId: input.areaId, name: input.name } },
     });
+
+    if (existing?.active) {
+      throw new ConflictException(
+        `Zone "${input.name}" already exists in this area.`,
+      );
+    }
+
+    if (existing) {
+      return this.prisma.zone.update({
+        where: { id: existing.id },
+        data: { active: true },
+      });
+    }
+
+    return this.prisma.zone.create({ data: input });
   }
 
   updateZone(id: string, input: UpdateZoneDto): Promise<Zone> {
-    const { areas: _ignore, ...rest } = input;
-    return this.prisma.zone.update({ where: { id }, data: rest });
+    return this.prisma.zone.update({ where: { id }, data: input });
   }
 
   deactivateZone(id: string): Promise<Zone> {
     return this.prisma.zone.update({ where: { id }, data: { active: false } });
-  }
-
-  // ── Zone areas ────────────────────────────────────────────────────────────
-
-  async addArea(zoneId: string, input: CreateZoneAreaDto): Promise<ZoneArea> {
-    await this.getZone(zoneId);
-    return this.prisma.zoneArea.create({ data: { zoneId, ...input } });
-  }
-
-  async removeArea(areaId: string): Promise<void> {
-    await this.prisma.zoneArea.delete({ where: { id: areaId } });
   }
 }

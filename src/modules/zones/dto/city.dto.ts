@@ -1,20 +1,7 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import {
-  IsBoolean,
-  IsOptional,
-  IsString,
-  Length,
-  Matches,
-} from 'class-validator';
-
-const SLUG_RX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+import { IsBoolean, IsOptional, IsString, Length } from 'class-validator';
 
 export class CreateCityDto {
-  @ApiProperty({ example: 'lahore' })
-  @IsString()
-  @Matches(SLUG_RX)
-  slug!: string;
-
   @ApiProperty({ example: 'Lahore' })
   @IsString()
   @Length(1, 80)

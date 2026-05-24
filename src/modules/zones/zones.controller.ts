@@ -13,12 +13,9 @@ import { Role } from '../../prisma/client';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CreateAreaDto, UpdateAreaDto } from './dto/area.dto';
 import { CreateCityDto, UpdateCityDto } from './dto/city.dto';
-import {
-  CreateZoneAreaDto,
-  CreateZoneDto,
-  UpdateZoneDto,
-} from './dto/zone.dto';
+import { CreateZoneDto, UpdateZoneDto } from './dto/zone.dto';
 import { ZonesService } from './zones.service';
 
 @ApiTags('zones')
@@ -64,15 +61,53 @@ export class ZonesController {
     return this.zones.deactivateCity(id);
   }
 
+  // ── Areas ─────────────────────────────────────────────────────────────────
+
+  @Public()
+  @Get('areas')
+  listAreas(
+    @Query('cityId') cityId?: string,
+    @Query('activeOnly') activeOnly?: string,
+  ) {
+    return this.zones.listAreas({ cityId, activeOnly: activeOnly !== 'false' });
+  }
+
+  @Public()
+  @Get('areas/:id')
+  getArea(@Param('id') id: string) {
+    return this.zones.getArea(id);
+  }
+
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @Post('areas')
+  createArea(@Body() dto: CreateAreaDto) {
+    return this.zones.createArea(dto);
+  }
+
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @Patch('areas/:id')
+  updateArea(@Param('id') id: string, @Body() dto: UpdateAreaDto) {
+    return this.zones.updateArea(id, dto);
+  }
+
+  @ApiBearerAuth()
+  @Roles(Role.ADMIN)
+  @Delete('areas/:id')
+  deactivateArea(@Param('id') id: string) {
+    return this.zones.deactivateArea(id);
+  }
+
   // ── Zones ─────────────────────────────────────────────────────────────────
 
   @Public()
   @Get('zones')
   listZones(
-    @Query('cityId') cityId?: string,
+    @Query('areaId') areaId?: string,
     @Query('activeOnly') activeOnly?: string,
   ) {
-    return this.zones.listZones({ cityId, activeOnly: activeOnly !== 'false' });
+    return this.zones.listZones({ areaId, activeOnly: activeOnly !== 'false' });
   }
 
   @Public()
@@ -100,19 +135,5 @@ export class ZonesController {
   @Delete('zones/:id')
   deactivateZone(@Param('id') id: string) {
     return this.zones.deactivateZone(id);
-  }
-
-  @ApiBearerAuth()
-  @Roles(Role.ADMIN)
-  @Post('zones/:id/areas')
-  addArea(@Param('id') id: string, @Body() dto: CreateZoneAreaDto) {
-    return this.zones.addArea(id, dto);
-  }
-
-  @ApiBearerAuth()
-  @Roles(Role.ADMIN)
-  @Delete('zone-areas/:areaId')
-  removeArea(@Param('areaId') areaId: string) {
-    return this.zones.removeArea(areaId);
   }
 }
