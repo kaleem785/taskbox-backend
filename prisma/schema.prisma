@@ -73,19 +73,15 @@ model PasswordResetToken {
 // ---------------------------------------------------------------------------
 
 model Category {
-  id            String   @id @default(cuid())
-  slug          String   @unique
-  name          String
-  icon          String?
-  color         String?
-  description   String?
-  imageUrl      String?
-  displayOrder  Int      @default(0)
-  active        Boolean  @default(true)
-  priceRangeMin Int?
-  priceRangeMax Int?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  description  String?
+  imageUrl     String?
+  displayOrder Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   services   Service[]
   partners   Partner[]

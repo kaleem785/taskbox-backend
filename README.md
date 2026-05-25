@@ -17,11 +17,17 @@ NestJS API for the TaskBox service-marketplace platform. Powers the admin panel 
 ## Quick start
 
 ```sh
-cp .env.example .env       # fill in DATABASE_URL, JWT secrets, etc.
+cp .env.example .env       # fill in DATABASE_URL, JWT secrets, R2 keys, etc.
 docker compose up -d       # local postgres on :55432, redis on :56379
 pnpm install
 pnpm prisma generate
 pnpm prisma migrate dev    # apply migrations
+
+# One-off bootstrap: upload the six demo category PNGs to R2 so the seed has images.
+# Requires R2_* env vars including R2_PUBLIC_BASE_URL. Skip if R2 isn't configured —
+# `pnpm prisma:seed` will still run, but Category.imageUrl rows will be unreachable.
+pnpm tsx prisma/seed-category-images.ts
+
 pnpm prisma:seed           # runs prisma db seed
 pnpm start:dev             # http://localhost:3000  •  Swagger at /docs
 ```

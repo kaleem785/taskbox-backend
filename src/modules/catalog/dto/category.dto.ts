@@ -26,19 +26,12 @@ export class CreateCategoryDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  icon?: string;
-
-  @ApiPropertyOptional({ example: '#FF6F00' })
-  @IsOptional()
-  @IsString()
-  color?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
   description?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description:
+      'Public URL of the category illustration (set via POST /uploads/category-image).',
+  })
   @IsOptional()
   @IsString()
   imageUrl?: string;
@@ -49,20 +42,6 @@ export class CreateCategoryDto {
   @IsInt()
   @Min(0)
   displayOrder?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  priceRangeMin?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  priceRangeMax?: number;
 
   @ApiPropertyOptional({ default: true })
   @IsOptional()
