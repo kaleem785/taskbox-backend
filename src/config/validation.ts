@@ -34,6 +34,7 @@ export const validationSchema = Joi.object({
   R2_ACCESS_KEY_ID: Joi.string().allow('').default(''),
   R2_SECRET_ACCESS_KEY: Joi.string().allow('').default(''),
   R2_REGION: Joi.string().default('auto'),
+  R2_PUBLIC_BASE_URL: Joi.string().uri().allow('').default(''),
 
   REDIS_URL: Joi.string().uri({ scheme: ['redis', 'rediss'] }).allow('').default(''),
 

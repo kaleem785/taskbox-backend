@@ -92,67 +92,57 @@ const BADGES = [
 ];
 
 // ── Categories (mirror the customer demo's six categories) ────────────────────
+//
+// imageUrl points at objects uploaded by the one-off `seed-category-images.ts`
+// bootstrap script (run manually on a fresh environment). If R2_PUBLIC_BASE_URL is
+// not set the URLs will be obviously broken (`undefined/category/seed/<slug>.png`)
+// — that's intentional, so a misconfigured env fails loudly during seeding.
+
+const PUBLIC_BASE = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/+$/, '');
+const seedImage = (slug: string) => `${PUBLIC_BASE}/category/seed/${slug}.png`;
 
 const CATEGORIES = [
   {
     slug: 'cleaning',
     name: 'Cleaning',
-    icon: 'sparkles',
-    color: '#00E096',
     description: 'Deep cleaning and sanitization services',
+    imageUrl: seedImage('cleaning'),
     displayOrder: 1,
-    priceRangeMin: 800,
-    priceRangeMax: 8000,
   },
   {
     slug: 'plumbing',
     name: 'Plumbing',
-    icon: 'droplet',
-    color: '#1E88E5',
     description: 'Expert plumbing solutions for homes and offices',
+    imageUrl: seedImage('plumbing'),
     displayOrder: 2,
-    priceRangeMin: 1000,
-    priceRangeMax: 6000,
   },
   {
     slug: 'electrical',
     name: 'Electrical',
-    icon: 'zap',
-    color: '#FFB800',
     description: 'Certified electricians for all electrical needs',
+    imageUrl: seedImage('electrical'),
     displayOrder: 3,
-    priceRangeMin: 800,
-    priceRangeMax: 4000,
   },
   {
     slug: 'ac-repair',
     name: 'AC Repair',
-    icon: 'snowflake',
-    color: '#FF6F00',
     description: 'AC installation, gas refill, and servicing',
+    imageUrl: seedImage('ac-repair'),
     displayOrder: 4,
-    priceRangeMin: 1500,
-    priceRangeMax: 6000,
   },
   {
     slug: 'painting',
     name: 'Painting',
-    icon: 'paintbrush',
-    color: '#B464FF',
     description: 'Professional interior and exterior painting',
+    imageUrl: seedImage('painting'),
     displayOrder: 5,
-    priceRangeMin: 2500,
-    priceRangeMax: 12000,
   },
   {
     slug: 'salon',
     name: 'Salon',
-    icon: 'scissors',
-    color: '#FF6464',
     description: 'At-home grooming and salon services',
+    imageUrl: seedImage('salon'),
     displayOrder: 6,
-    priceRangeMin: 299,
-    priceRangeMax: 2500,
   },
 ];
 
@@ -367,7 +357,14 @@ async function seedCategories(): Promise<Map<string, string>> {
   for (const cat of CATEGORIES) {
     const category = await prisma.category.upsert({
       where: { slug: cat.slug },
-      update: {},
+      // Re-seeding should refresh the demo metadata (especially imageUrl after the
+      // bootstrap script runs) without disturbing admin-created categories.
+      update: {
+        name: cat.name,
+        description: cat.description,
+        imageUrl: cat.imageUrl,
+        displayOrder: cat.displayOrder,
+      },
       create: cat,
     });
     idBySlug.set(cat.slug, category.id);

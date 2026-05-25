@@ -18,6 +18,12 @@ export interface AppConfig {
     accessKeyId: string;
     secretAccessKey: string;
     region: string;
+    /**
+     * Public read URL for bucket objects (e.g. R2.dev subdomain or custom domain).
+     * Persisted URLs are built as `${publicBaseUrl}/${key}` and served without signing.
+     * If empty, the backend will still upload but cannot return a usable public URL.
+     */
+    publicBaseUrl: string;
   };
   redis: {
     url: string;
@@ -48,6 +54,7 @@ export default (): AppConfig => ({
     accessKeyId: process.env.R2_ACCESS_KEY_ID ?? '',
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
     region: process.env.R2_REGION ?? 'auto',
+    publicBaseUrl: (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/+$/, ''),
   },
   redis: {
     url: process.env.REDIS_URL ?? '',
