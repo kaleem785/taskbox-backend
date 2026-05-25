@@ -9,6 +9,7 @@ import {
   IsString,
   Length,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateBookingDto {
@@ -20,9 +21,19 @@ export class CreateBookingDto {
   @IsString()
   customerAddressId!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description: 'Provide exactly one of serviceVariantId or packageId',
+  })
+  @ValidateIf((o) => !o.packageId)
   @IsString()
-  serviceId!: string;
+  serviceVariantId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Provide exactly one of serviceVariantId or packageId',
+  })
+  @ValidateIf((o) => !o.serviceVariantId)
+  @IsString()
+  packageId?: string;
 
   @ApiProperty({ example: '2026-05-20' })
   @IsDateString()

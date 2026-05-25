@@ -76,18 +76,33 @@ const AREAS_BY_CITY_NAME: Record<string, string[]> = {
   ],
 };
 
-// ── Categories seed (mirrors mockData.ts categoriesData) ─────────────────────
+// ── Tabs + Badges (admin-curated discovery surfaces) ─────────────────────────
+
+const TABS = [
+  { slug: 'offers', name: 'Special Offers For You', displayOrder: 0 },
+  { slug: 'popular', name: 'Popular', displayOrder: 1 },
+  { slug: 'deals', name: 'Exclusive Deals', displayOrder: 2 },
+];
+
+const BADGES = [
+  { slug: 'new', name: 'New', color: '#FF6F00', displayOrder: 0 },
+  { slug: 'popular', name: 'Popular', color: '#1E88E5', displayOrder: 1 },
+  { slug: 'trending', name: 'Trending', color: '#E91E63', displayOrder: 2 },
+  { slug: 'exclusive', name: 'Exclusive', color: '#8E24AA', displayOrder: 3 },
+];
+
+// ── Categories (mirror the customer demo's six categories) ────────────────────
 
 const CATEGORIES = [
   {
-    slug: 'ac-services',
-    name: 'AC Services',
-    icon: 'snowflake',
-    color: '#FF6F00',
-    description: 'Professional AC installation, repair, and maintenance services',
+    slug: 'cleaning',
+    name: 'Cleaning',
+    icon: 'sparkles',
+    color: '#00E096',
+    description: 'Deep cleaning and sanitization services',
     displayOrder: 1,
     priceRangeMin: 800,
-    priceRangeMax: 5000,
+    priceRangeMax: 8000,
   },
   {
     slug: 'plumbing',
@@ -96,8 +111,8 @@ const CATEGORIES = [
     color: '#1E88E5',
     description: 'Expert plumbing solutions for homes and offices',
     displayOrder: 2,
-    priceRangeMin: 500,
-    priceRangeMax: 4500,
+    priceRangeMin: 1000,
+    priceRangeMax: 6000,
   },
   {
     slug: 'electrical',
@@ -106,18 +121,18 @@ const CATEGORIES = [
     color: '#FFB800',
     description: 'Certified electricians for all electrical needs',
     displayOrder: 3,
-    priceRangeMin: 600,
-    priceRangeMax: 6000,
+    priceRangeMin: 800,
+    priceRangeMax: 4000,
   },
   {
-    slug: 'cleaning',
-    name: 'Cleaning',
-    icon: 'sparkles',
-    color: '#00E096',
-    description: 'Deep cleaning and sanitization services',
+    slug: 'ac-repair',
+    name: 'AC Repair',
+    icon: 'snowflake',
+    color: '#FF6F00',
+    description: 'AC installation, gas refill, and servicing',
     displayOrder: 4,
-    priceRangeMin: 1000,
-    priceRangeMax: 8000,
+    priceRangeMin: 1500,
+    priceRangeMax: 6000,
   },
   {
     slug: 'painting',
@@ -126,85 +141,134 @@ const CATEGORIES = [
     color: '#B464FF',
     description: 'Professional interior and exterior painting',
     displayOrder: 5,
-    priceRangeMin: 2000,
-    priceRangeMax: 15000,
+    priceRangeMin: 2500,
+    priceRangeMax: 12000,
   },
   {
-    slug: 'carpentry',
-    name: 'Carpentry',
-    icon: 'hammer',
+    slug: 'salon',
+    name: 'Salon',
+    icon: 'scissors',
     color: '#FF6464',
-    description: 'Custom furniture and carpentry solutions',
+    description: 'At-home grooming and salon services',
     displayOrder: 6,
-    priceRangeMin: 1500,
-    priceRangeMax: 25000,
-  },
-  {
-    slug: 'pest-control',
-    name: 'Pest Control',
-    icon: 'bug',
-    color: '#64C864',
-    description: 'Safe and effective pest elimination services',
-    displayOrder: 7,
-    priceRangeMin: 1200,
-    priceRangeMax: 5000,
-  },
-  {
-    slug: 'appliances',
-    name: 'Appliances',
-    icon: 'wrench',
-    color: '#64B4FF',
-    description: 'Repair and maintenance for all home appliances',
-    displayOrder: 8,
-    priceRangeMin: 700,
-    priceRangeMax: 7000,
+    priceRangeMin: 299,
+    priceRangeMax: 2500,
   },
 ];
 
-const SUB_CATEGORIES_BY_CATEGORY_SLUG: Record<
-  string,
-  { slug: string; name: string; description: string }[]
-> = {
-  'ac-services': [
-    { slug: 'ac-repair', name: 'AC Repair', description: 'Repair and troubleshooting' },
-    {
-      slug: 'ac-installation',
-      name: 'AC Installation',
-      description: 'New AC installation services',
-    },
-    { slug: 'ac-gas-refill', name: 'AC Gas Refill', description: 'Refrigerant top-up' },
-    {
-      slug: 'ac-maintenance',
-      name: 'AC Maintenance',
-      description: 'Regular preventive servicing',
-    },
+// ── Services per category (mirrors Admin Panel Design/src/app/customer/data/servicesData.ts) ──
+// badgeSlug is resolved to a Badge.id at seed time; null = no badge.
+
+type ServiceSeed = {
+  key: string; // demo id, used to look up child variants
+  name: string;
+  price: number;
+  badgeSlug: string | null;
+  isPopular?: boolean;
+  rating: number; // drives HomeFeature top-services pick
+};
+
+const SERVICES_BY_CATEGORY_SLUG: Record<string, ServiceSeed[]> = {
+  cleaning: [
+    { key: 'clean-1', name: 'Home Deep Cleaning', price: 2499, badgeSlug: 'trending', isPopular: true, rating: 4.8 },
+    { key: 'clean-2', name: 'Bathroom Cleaning', price: 899, badgeSlug: null, rating: 4.7 },
+    { key: 'clean-3', name: 'Sofa Carpet Clean', price: 1499, badgeSlug: 'popular', isPopular: true, rating: 4.9 },
+    { key: 'clean-4', name: 'Kitchen Cleaning', price: 1299, badgeSlug: null, rating: 4.6 },
+    { key: 'clean-5', name: 'Bungalow Clean Pro', price: 4999, badgeSlug: 'exclusive', rating: 4.9 },
   ],
   plumbing: [
-    { slug: 'pipe-repair', name: 'Pipe Repair', description: 'Leak and burst pipe repairs' },
-    { slug: 'drainage', name: 'Drainage', description: 'Drain unclogging and cleaning' },
-    {
-      slug: 'bathroom-fitting',
-      name: 'Bathroom Fitting',
-      description: 'Toilet, sink, shower installation',
-    },
+    { key: 'plumb-1', name: 'Leak Repair', price: 1200, badgeSlug: 'popular', isPopular: true, rating: 4.7 },
+    { key: 'plumb-2', name: 'Emergency Plumbing', price: 1800, badgeSlug: 'new', rating: 4.8 },
+    { key: 'plumb-3', name: 'Pipe Installation', price: 2800, badgeSlug: null, rating: 4.8 },
+    { key: 'plumb-4', name: 'Water Heater', price: 2200, badgeSlug: 'trending', isPopular: true, rating: 4.9 },
+    { key: 'plumb-5', name: 'Bathroom Fitting', price: 3500, badgeSlug: null, rating: 4.6 },
+    { key: 'plumb-6', name: 'Drainage', price: 1500, badgeSlug: null, rating: 4.5 },
+    { key: 'plumb-7', name: 'Pipe Repair', price: 1800, badgeSlug: null, rating: 4.7 },
+    { key: 'plumb-8', name: 'Water Tank', price: 4500, badgeSlug: 'exclusive', rating: 4.8 },
   ],
   electrical: [
-    { slug: 'wiring', name: 'Wiring', description: 'Installation and rewiring' },
-    {
-      slug: 'switch-socket-repair',
-      name: 'Switch & Socket Repair',
-      description: 'Replace faulty switches and sockets',
-    },
+    { key: 'elec-1', name: 'Wiring Repair', price: 1800, badgeSlug: 'new', rating: 4.6 },
+    { key: 'elec-2', name: 'Switch & Socket Install', price: 899, badgeSlug: null, rating: 4.7 },
+    { key: 'elec-3', name: 'Fan Installation', price: 1200, badgeSlug: 'popular', isPopular: true, rating: 4.8 },
+    { key: 'elec-4', name: 'Light Fixture Setup', price: 1500, badgeSlug: null, rating: 4.7 },
   ],
-  cleaning: [
-    { slug: 'deep-cleaning', name: 'Deep Cleaning', description: 'Full home deep clean' },
-    {
-      slug: 'regular-cleaning',
-      name: 'Regular Cleaning',
-      description: 'Weekly recurring cleaning',
-    },
+  'ac-repair': [
+    { key: 'ac-1', name: 'AC Servicing', price: 1800, badgeSlug: 'trending', isPopular: true, rating: 4.8 },
+    { key: 'ac-2', name: 'Gas Refill', price: 2200, badgeSlug: null, rating: 4.7 },
+    { key: 'ac-3', name: 'AC Installation', price: 3500, badgeSlug: 'new', rating: 4.9 },
+  ],
+  painting: [
+    { key: 'paint-1', name: 'Wall Painting', price: 3500, badgeSlug: 'popular', isPopular: true, rating: 4.8 },
+    { key: 'paint-2', name: 'Ceiling Paint', price: 2800, badgeSlug: null, rating: 4.6 },
+    { key: 'paint-3', name: 'Exterior Painting', price: 5500, badgeSlug: 'exclusive', rating: 4.7 },
+  ],
+  salon: [
+    { key: 'salon-1', name: 'Haircut & Styling', price: 599, badgeSlug: 'popular', isPopular: true, rating: 4.8 },
+    { key: 'salon-2', name: 'Beard Grooming', price: 299, badgeSlug: 'new', rating: 4.7 },
+    { key: 'salon-3', name: 'Hair Coloring', price: 1499, badgeSlug: 'trending', rating: 4.9 },
   ],
 };
+
+// ── Variant templates ────────────────────────────────────────────────────────
+// Faithful child services for plumb-4..plumb-8 (from ServiceDetail.tsx childServicesMap);
+// every other service gets a generic five-variant spread.
+
+type VariantTemplate = { name: string; description: string; priceFactor: number; discountPct: number };
+
+const CHILD_VARIANTS: Record<string, VariantTemplate[]> = {
+  'plumb-4': [
+    { name: 'Heater Inspection & Diagnosis', description: 'Professional inspection with detailed issue report & quote.', priceFactor: 0.3, discountPct: 20 },
+    { name: 'Water Heater Tank Replacement', description: 'Complete tank replacement with installation & testing.', priceFactor: 2.5, discountPct: 25 },
+    { name: 'Heating Element Repair', description: 'Element replacement for consistent hot water supply.', priceFactor: 1.2, discountPct: 15 },
+    { name: 'Thermostat Replacement', description: 'Digital thermostat installation for accurate control.', priceFactor: 0.8, discountPct: 18 },
+    { name: 'Pressure Relief Valve Change', description: 'Safety valve replacement to prevent tank damage.', priceFactor: 0.6, discountPct: 12 },
+  ],
+  'plumb-5': [
+    { name: 'Faucet Installation', description: 'Modern faucet setup with leak-proof installation.', priceFactor: 0.6, discountPct: 15 },
+    { name: 'Shower System Installation', description: 'Complete shower fixture setup with quality fittings.', priceFactor: 1.3, discountPct: 20 },
+    { name: 'Toilet Installation & Repair', description: 'Professional toilet setup or flush mechanism repair.', priceFactor: 1.0, discountPct: 18 },
+    { name: 'Vanity Sink Setup', description: 'Complete vanity installation with plumbing connections.', priceFactor: 1.5, discountPct: 22 },
+    { name: 'Bathroom Accessories Setup', description: 'Towel racks, soap holders & other fixture installation.', priceFactor: 0.4, discountPct: 10 },
+  ],
+  'plumb-6': [
+    { name: 'Drain Cleaning & Unclogging', description: 'Professional drain snake for stubborn blockages.', priceFactor: 0.8, discountPct: 15 },
+    { name: 'Kitchen Sink Drainage Fix', description: 'Sink drain cleaning with grease removal treatment.', priceFactor: 0.6, discountPct: 12 },
+    { name: 'Bathroom Floor Drain Cleaning', description: 'Floor drain clearing with anti-odor treatment.', priceFactor: 0.7, discountPct: 18 },
+    { name: 'Main Sewer Line Service', description: 'Heavy-duty equipment for main line blockages.', priceFactor: 2.0, discountPct: 25 },
+    { name: 'Complete Drainage Inspection', description: 'Camera inspection to identify hidden drain issues.', priceFactor: 1.2, discountPct: 20 },
+  ],
+  'plumb-7': [
+    { name: 'Burst Pipe Emergency Fix', description: '24/7 emergency repair for burst pipe situations.', priceFactor: 1.8, discountPct: 10 },
+    { name: 'Leak Detection & Sealing', description: 'Advanced leak detection with permanent sealing.', priceFactor: 1.0, discountPct: 15 },
+    { name: 'Pipe Joint Repair', description: 'Joint connector replacement to prevent leakage.', priceFactor: 0.7, discountPct: 12 },
+    { name: 'Copper Pipe Replacement', description: 'Premium copper pipe installation for durability.', priceFactor: 1.5, discountPct: 18 },
+    { name: 'PVC Pipe Replacement', description: 'Modern PVC piping for long-lasting water supply.', priceFactor: 1.2, discountPct: 20 },
+  ],
+  'plumb-8': [
+    { name: 'Water Tank Installation', description: 'Complete tank installation with stand & piping.', priceFactor: 2.2, discountPct: 25 },
+    { name: 'Tank Deep Cleaning Service', description: 'Professional sanitization & sediment removal.', priceFactor: 0.7, discountPct: 18 },
+    { name: 'Tank Leak Repair', description: 'Crack sealing & waterproofing for existing tanks.', priceFactor: 1.0, discountPct: 15 },
+    { name: 'Float Valve Replacement', description: 'Automatic valve installation for water level control.', priceFactor: 0.5, discountPct: 12 },
+    { name: 'Overhead Tank Setup', description: 'Rooftop tank installation with motor connection.', priceFactor: 2.5, discountPct: 28 },
+  ],
+};
+
+const GENERIC_VARIANTS: VariantTemplate[] = [
+  { name: 'Inspection & Diagnosis', description: 'On-site inspection with a detailed quote.', priceFactor: 0.3, discountPct: 18 },
+  { name: 'Basic Service', description: 'Standard single-issue service visit.', priceFactor: 0.7, discountPct: 10 },
+  { name: 'Standard Package', description: 'Full service with quality workmanship.', priceFactor: 1.0, discountPct: 15 },
+  { name: 'Premium Package', description: 'Comprehensive service with premium materials.', priceFactor: 1.6, discountPct: 22 },
+  { name: 'Express / Same-Day', description: 'Priority same-day response.', priceFactor: 1.3, discountPct: 12 },
+];
+
+function variantsFor(svc: ServiceSeed): VariantTemplate[] {
+  const child = CHILD_VARIANTS[svc.key];
+  if (child) return child;
+  return GENERIC_VARIANTS.map((t) => ({
+    ...t,
+    name: `${svc.name} — ${t.name}`,
+  }));
+}
 
 // ── Seed runners ─────────────────────────────────────────────────────────────
 
@@ -248,7 +312,6 @@ async function seedAreasAndZones() {
   let zoneCount = 0;
   const zoneSuffixes = ['Block A', 'Block B', 'Block C'];
   for (const [cityName, areaNames] of Object.entries(AREAS_BY_CITY_NAME)) {
-    // Seed data has unique city names across provinces, so findFirst is fine.
     const city = await prisma.city.findFirst({ where: { name: cityName } });
     if (!city) continue;
     for (const name of areaNames) {
@@ -271,41 +334,49 @@ async function seedAreasAndZones() {
   console.log(`  Areas: ${areaCount}, Zones: ${zoneCount}`);
 }
 
-async function seedCatalog() {
-  let catCount = 0;
-  let subCount = 0;
+async function seedTabs(): Promise<Map<string, string>> {
+  const idBySlug = new Map<string, string>();
+  for (const t of TABS) {
+    const tab = await prisma.tab.upsert({
+      where: { slug: t.slug },
+      update: { name: t.name, displayOrder: t.displayOrder },
+      create: t,
+    });
+    idBySlug.set(t.slug, tab.id);
+  }
+  console.log(`  Tabs: ${idBySlug.size}`);
+  return idBySlug;
+}
+
+async function seedBadges(): Promise<Map<string, string>> {
+  const idBySlug = new Map<string, string>();
+  for (const b of BADGES) {
+    const badge = await prisma.badge.upsert({
+      where: { slug: b.slug },
+      update: { name: b.name, color: b.color, displayOrder: b.displayOrder },
+      create: b,
+    });
+    idBySlug.set(b.slug, badge.id);
+  }
+  console.log(`  Badges: ${idBySlug.size}`);
+  return idBySlug;
+}
+
+async function seedCategories(): Promise<Map<string, string>> {
+  const idBySlug = new Map<string, string>();
   for (const cat of CATEGORIES) {
     const category = await prisma.category.upsert({
       where: { slug: cat.slug },
       update: {},
       create: cat,
     });
-    catCount++;
-    const subs = SUB_CATEGORIES_BY_CATEGORY_SLUG[cat.slug] ?? [];
-    for (let i = 0; i < subs.length; i++) {
-      const sub = subs[i];
-      await prisma.subCategory.upsert({
-        where: { categoryId_slug: { categoryId: category.id, slug: sub.slug } },
-        update: {},
-        create: {
-          categoryId: category.id,
-          slug: sub.slug,
-          name: sub.name,
-          description: sub.description,
-          displayOrder: i,
-        },
-      });
-      subCount++;
-    }
+    idBySlug.set(cat.slug, category.id);
   }
-  console.log(`  Categories: ${catCount}, SubCategories: ${subCount}`);
+  console.log(`  Categories: ${idBySlug.size}`);
+  return idBySlug;
 }
 
-// ── Demo dataset (services, partners, customers, bookings) ──────────────────
-//
-// The dashboard's Live Dispatch + Zone Heatmap panels read live booking data,
-// so we seed a realistic spread of partners/customers/bookings. This data is
-// fully reset on each run so reseeding stays idempotent.
+// ── Demo dataset (services, variants, packages, partners, customers, bookings) ──
 
 const FIRST_NAMES = [
   'Ahmed', 'Ali', 'Fatima', 'Sara', 'Bilal', 'Hassan', 'Ayesha', 'Usman',
@@ -331,9 +402,10 @@ function daysAgo(n: number): Date {
   return d;
 }
 
-// Delete all transactional data (everything that depends on partners/customers/
-// services) in FK-safe order so the demo seed can run repeatedly.
-async function resetTransactionalData() {
+// Delete catalog + transactional data in FK-safe order so the seed re-runs cleanly.
+// Tabs/Badges/Categories are upserted (preserved); Services and everything that
+// hangs off them (variants, packages, home features) are rebuilt from scratch.
+async function resetSeedData() {
   await prisma.bookingStatusHistory.deleteMany();
   await prisma.review.deleteMany();
   await prisma.commissionEvent.deleteMany();
@@ -344,44 +416,146 @@ async function resetTransactionalData() {
   await prisma.customerAddress.deleteMany();
   await prisma.partner.deleteMany();
   await prisma.customer.deleteMany();
+  await prisma.homeFeature.deleteMany();
+  await prisma.packageItem.deleteMany();
+  await prisma.package.deleteMany();
+  await prisma.variantTab.deleteMany();
+  await prisma.serviceVariant.deleteMany();
   await prisma.serviceCity.deleteMany();
   await prisma.service.deleteMany();
-  console.log('  Reset transactional data (services/partners/customers/bookings)');
+  console.log('  Reset catalog + transactional data');
 }
 
-type SeededService = { id: string; categoryId: string; price: number };
+type SeededVariant = { id: string; discountPct: number };
+type SeededService = {
+  id: string;
+  key: string;
+  categoryId: string;
+  categorySlug: string;
+  price: number;
+  rating: number;
+  isPopular: boolean;
+  badgeSlug: string | null;
+  variants: SeededVariant[];
+};
 
-async function seedServices(): Promise<SeededService[]> {
-  const subs = await prisma.subCategory.findMany({
-    include: { category: true },
-    orderBy: { createdAt: 'asc' },
-  });
-  const services: SeededService[] = [];
-  for (const sub of subs) {
-    const min = sub.category.priceRangeMin ?? 800;
-    const max = sub.category.priceRangeMax ?? 5000;
-    const price = Math.round((min + max) / 2);
-    const created = await prisma.service.create({
-      data: {
-        categoryId: sub.categoryId,
-        subCategoryId: sub.id,
-        name: sub.name,
-        description: sub.description,
-        price,
-      },
-      select: { id: true, categoryId: true },
-    });
-    services.push({ ...created, price });
+async function seedServicesVariantsPackages(
+  categoryIdBySlug: Map<string, string>,
+  tabIdBySlug: Map<string, string>,
+  badgeIdBySlug: Map<string, string>,
+): Promise<SeededService[]> {
+  const seeded: SeededService[] = [];
+  let variantCount = 0;
+  let packageCount = 0;
+
+  for (const [slug, services] of Object.entries(SERVICES_BY_CATEGORY_SLUG)) {
+    const categoryId = categoryIdBySlug.get(slug)!;
+    for (let s = 0; s < services.length; s++) {
+      const svc = services[s];
+      const service = await prisma.service.create({
+        data: {
+          categoryId,
+          name: svc.name,
+          description: `${svc.name} — professional, vetted service.`,
+          price: svc.price,
+          isPopular: svc.isPopular ?? false,
+          displayOrder: s,
+          badgeId: svc.badgeSlug ? badgeIdBySlug.get(svc.badgeSlug) : null,
+        },
+        select: { id: true },
+      });
+
+      // Variants
+      const templates = variantsFor(svc);
+      const createdVariants: SeededVariant[] = [];
+      for (let v = 0; v < templates.length; v++) {
+        const t = templates[v];
+        // List (pre-discount) price; `price` is the net bookable amount.
+        const listPrice = Math.round(svc.price * t.priceFactor);
+        const netPrice = Math.round(listPrice * (1 - t.discountPct / 100));
+        const variant = await prisma.serviceVariant.create({
+          data: {
+            serviceId: service.id,
+            name: t.name,
+            description: t.description,
+            price: netPrice,
+            originalPrice: t.discountPct > 0 ? listPrice : null,
+            discountPct: t.discountPct,
+            displayOrder: v,
+          },
+          select: { id: true },
+        });
+        createdVariants.push({ id: variant.id, discountPct: t.discountPct });
+        variantCount++;
+      }
+
+      // VariantTab membership: top-3-by-discount → popular; discount>=20 → deals;
+      // the rest → offers. (High-discount popular variants land in two tabs.)
+      const ranked = [...createdVariants].sort((a, b) => b.discountPct - a.discountPct);
+      const popularSet = new Set(ranked.slice(0, 3).map((v) => v.id));
+      const links: { variantId: string; tabId: string }[] = [];
+      for (const v of createdVariants) {
+        if (popularSet.has(v.id)) links.push({ variantId: v.id, tabId: tabIdBySlug.get('popular')! });
+        else links.push({ variantId: v.id, tabId: tabIdBySlug.get('offers')! });
+        if (v.discountPct >= 20) links.push({ variantId: v.id, tabId: tabIdBySlug.get('deals')! });
+      }
+      if (links.length) {
+        await prisma.variantTab.createMany({ data: links, skipDuplicates: true });
+      }
+
+      seeded.push({
+        id: service.id,
+        key: svc.key,
+        categoryId,
+        categorySlug: slug,
+        price: svc.price,
+        rating: svc.rating,
+        isPopular: svc.isPopular ?? false,
+        badgeSlug: svc.badgeSlug,
+        variants: createdVariants,
+      });
+    }
+
+    // One package per category: bundle the first 3 variants of the first service
+    // that has at least 3 variants (same-service constraint).
+    const bundleSource = seeded
+      .filter((s) => s.categorySlug === slug)
+      .find((s) => s.variants.length >= 3);
+    if (bundleSource) {
+      const items = bundleSource.variants.slice(0, 3);
+      const variantRows = await prisma.serviceVariant.findMany({
+        where: { id: { in: items.map((i) => i.id) } },
+        select: { id: true, price: true },
+      });
+      const sum = variantRows.reduce((acc, r) => acc + Number(r.price), 0);
+      const bundlePrice = Math.round(sum * 0.85);
+      await prisma.package.create({
+        data: {
+          serviceId: bundleSource.id,
+          name: `${SERVICES_BY_CATEGORY_SLUG[slug].find((x) => x.key === bundleSource.key)!.name} Care Bundle`,
+          description: 'Best-value bundle combining our most-requested services.',
+          price: bundlePrice,
+          originalPrice: sum,
+          displayOrder: 0,
+          items: {
+            create: items.map((it, idx) => ({
+              serviceVariantId: it.id,
+              quantity: 1,
+              displayOrder: idx,
+            })),
+          },
+        },
+      });
+      packageCount++;
+    }
   }
-  console.log(`  Services: ${services.length}`);
-  return services;
+
+  console.log(`  Services: ${seeded.length}, Variants: ${variantCount}, Packages: ${packageCount}`);
+  return seeded;
 }
 
-type SeededPartner = { id: string; categoryId: string; zoneIds: string[] };
-
-async function seedPartners(): Promise<SeededPartner[]> {
+async function seedPartners() {
   const categories = await prisma.category.findMany({ select: { id: true } });
-  // Only cities that actually have zones can host partners.
   const zones = await prisma.zone.findMany({
     where: { active: true },
     select: { id: true, area: { select: { cityId: true } } },
@@ -393,12 +567,11 @@ async function seedPartners(): Promise<SeededPartner[]> {
   }
   const cityIds = [...zonesByCity.keys()];
 
-  const partners: SeededPartner[] = [];
+  const partners: { id: string; categoryId: string; zoneIds: string[] }[] = [];
   for (let i = 0; i < 20; i++) {
     const categoryId = categories[i % categories.length].id;
     const cityId = cityIds[i % cityIds.length];
     const cityZones = zonesByCity.get(cityId) ?? [];
-    // Assign 1–3 zones in the partner's city.
     const count = Math.min(cityZones.length, 1 + (i % 3));
     const start = i % Math.max(1, cityZones.length);
     const zoneIds = Array.from({ length: count }, (_, k) =>
@@ -412,9 +585,9 @@ async function seedPartners(): Promise<SeededPartner[]> {
         email: `partner${i}@taskbox.pk`,
         categoryId,
         cityId,
-        rating: Math.round((3.5 + (i % 14) / 10) * 100) / 100, // 3.5–4.8
+        rating: Math.round((3.5 + (i % 14) / 10) * 100) / 100,
         totalJobs: 5 + ((i * 7) % 120),
-        availability: i % 5 !== 0, // ~80% available
+        availability: i % 5 !== 0,
         verified: true,
       },
       select: { id: true },
@@ -441,11 +614,7 @@ async function seedCustomers(): Promise<SeededCustomer[]> {
       id: true,
       name: true,
       area: {
-        select: {
-          name: true,
-          cityId: true,
-          city: { select: { province: true } },
-        },
+        select: { name: true, cityId: true, city: { select: { province: true } } },
       },
     },
   });
@@ -487,10 +656,9 @@ async function seedCustomers(): Promise<SeededCustomer[]> {
 
 async function seedBookings(
   services: SeededService[],
-  partners: SeededPartner[],
+  partners: { id: string; categoryId: string; zoneIds: string[] }[],
   customers: SeededCustomer[],
 ) {
-  // partnerId candidates per zone, for sensible (zone-matched) assignment.
   const partnersByZone = new Map<string, string[]>();
   for (const p of partners) {
     for (const z of p.zoneIds) {
@@ -498,7 +666,6 @@ async function seedBookings(
     }
   }
 
-  // Status distribution across ~60 bookings (covers every BookingStatus).
   const distribution: BookingStatus[] = [
     ...Array<BookingStatus>(10).fill(BookingStatus.PENDING),
     ...Array<BookingStatus>(8).fill(BookingStatus.AUTO_ASSIGNED),
@@ -509,15 +676,17 @@ async function seedBookings(
   ];
 
   const times = ['09:00 AM', '11:30 AM', '01:00 PM', '03:30 PM', '05:00 PM'];
+  // Only services with at least one variant can be booked (XOR requires a variant).
+  const bookable = services.filter((s) => s.variants.length > 0);
   let count = 0;
 
   for (let i = 0; i < distribution.length; i++) {
     const status = distribution[i];
     const customer = customers[i % customers.length];
     const address = customer.addresses[0];
-    const service = services[i % services.length];
+    const service = bookable[i % bookable.length];
+    const variant = service.variants[i % service.variants.length];
 
-    // Bias ~60% of bookings into the last 7 days so the heatmap trend is positive.
     const createdAt = i % 5 < 3 ? daysAgo(i % 7) : daysAgo(7 + (i % 7));
     const scheduledDate = new Date(createdAt);
     scheduledDate.setDate(scheduledDate.getDate() + (i % 3));
@@ -541,7 +710,7 @@ async function seedBookings(
         customerId: customer.id,
         customerAddressId: address.id,
         serviceId: service.id,
-        partnerId,
+        serviceVariantId: variant.id,
         status,
         scheduledDate,
         scheduledTime: times[i % times.length],
@@ -553,6 +722,7 @@ async function seedBookings(
             : AssignedBy.ADMIN
           : null,
         assignedAt: partnerId ? createdAt : null,
+        partnerId,
         paymentStatus,
         createdAt,
       },
@@ -562,14 +732,56 @@ async function seedBookings(
   console.log(`  Bookings: ${count}`);
 }
 
+async function createHomeFeatures(services: SeededService[]) {
+  // Ensure the two starter sections exist (idempotent — the promotion migration
+  // already seeded them with these stable ids; we upsert by slug for safety).
+  const topSection = await prisma.homeSection.upsert({
+    where: { slug: 'top-services' },
+    update: { name: 'Top Services', displayOrder: 0 },
+    create: { id: 'hs_top_services', slug: 'top-services', name: 'Top Services', displayOrder: 0 },
+  });
+  const recommendedSection = await prisma.homeSection.upsert({
+    where: { slug: 'recommended' },
+    update: { name: 'Recommended for you', displayOrder: 1 },
+    create: { id: 'hs_recommended', slug: 'recommended', name: 'Recommended for you', displayOrder: 1 },
+  });
+
+  const topRated = [...services].sort((a, b) => b.rating - a.rating).slice(0, 3);
+  const newOne = services.find((s) => s.badgeSlug === 'new');
+  const recommended = [
+    ...(newOne ? [newOne] : []),
+    ...services.filter((s) => s.isPopular && s.id !== newOne?.id),
+  ]
+    .filter((s, idx, arr) => arr.findIndex((x) => x.id === s.id) === idx)
+    .slice(0, 3);
+
+  let n = 0;
+  for (let i = 0; i < topRated.length; i++) {
+    await prisma.homeFeature.create({
+      data: { serviceId: topRated[i].id, sectionId: topSection.id, displayOrder: i },
+    });
+    n++;
+  }
+  for (let i = 0; i < recommended.length; i++) {
+    await prisma.homeFeature.create({
+      data: { serviceId: recommended[i].id, sectionId: recommendedSection.id, displayOrder: i },
+    });
+    n++;
+  }
+  console.log(`  HomeFeatures: ${n} across 2 sections`);
+}
+
 async function main() {
   console.log('Seeding TaskBox database…');
   await seedUsers();
   await seedCities();
   await seedAreasAndZones();
-  await seedCatalog();
-  await resetTransactionalData();
-  const services = await seedServices();
+  const tabIds = await seedTabs();
+  const badgeIds = await seedBadges();
+  const categoryIds = await seedCategories();
+  await resetSeedData();
+  const services = await seedServicesVariantsPackages(categoryIds, tabIds, badgeIds);
+  await createHomeFeatures(services);
   const partners = await seedPartners();
   const customers = await seedCustomers();
   await seedBookings(services, partners, customers);

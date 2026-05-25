@@ -72,7 +72,35 @@ export class ReviewsService {
           totalJobs: { increment: 1 },
         },
       });
+      // Recompute the denormalized service rating aggregate (Review has no
+      // serviceId — aggregate via the booking relation).
+      await this.recomputeServiceRating(tx, booking.serviceId);
       return review;
+    });
+  }
+
+  /**
+   * Recompute Service.ratingAvg / reviewCount from all reviews whose booking
+   * points at this service. Called after any review create/delete.
+   */
+  private async recomputeServiceRating(
+    tx: Prisma.TransactionClient,
+    serviceId: string,
+  ) {
+    const agg = await tx.review.aggregate({
+      where: { booking: { serviceId } },
+      _avg: { rating: true },
+      _count: { _all: true },
+    });
+    await tx.service.update({
+      where: { id: serviceId },
+      data: {
+        ratingAvg:
+          agg._count._all === 0
+            ? null
+            : new Prisma.Decimal((agg._avg.rating ?? 0).toFixed(2)),
+        reviewCount: agg._count._all,
+      },
     });
   }
 
@@ -84,7 +112,15 @@ export class ReviewsService {
   }
 
   async remove(id: string) {
-    await this.prisma.review.delete({ where: { id } });
+    const review = await this.prisma.review.findUnique({
+      where: { id },
+      include: { booking: { select: { serviceId: true } } },
+    });
+    if (!review) throw new NotFoundException('Review not found');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.review.delete({ where: { id } });
+      await this.recomputeServiceRating(tx, review.booking.serviceId);
+    });
     return { success: true };
   }
 }

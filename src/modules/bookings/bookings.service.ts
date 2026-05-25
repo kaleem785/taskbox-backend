@@ -122,17 +122,43 @@ export class BookingsService {
     if (!address || address.customerId !== input.customerId) {
       throw new BadRequestException('customerAddressId does not belong to customer');
     }
-    const service = await this.prisma.service.findUnique({
-      where: { id: input.serviceId },
-    });
-    if (!service) throw new NotFoundException('Service not found');
+
+    // XOR invariant: exactly one of serviceVariantId / packageId. Backed by a
+    // Postgres CHECK constraint (bookings_variant_xor_package) as a safety net.
+    const hasVariant = Boolean(input.serviceVariantId);
+    const hasPackage = Boolean(input.packageId);
+    if (hasVariant === hasPackage) {
+      throw new BadRequestException(
+        'Provide exactly one of serviceVariantId or packageId',
+      );
+    }
+
+    // Resolve the denormalized parent serviceId from whichever path was used.
+    let serviceId: string;
+    if (hasVariant) {
+      const variant = await this.prisma.serviceVariant.findUnique({
+        where: { id: input.serviceVariantId },
+        select: { serviceId: true },
+      });
+      if (!variant) throw new NotFoundException('Service variant not found');
+      serviceId = variant.serviceId;
+    } else {
+      const pkg = await this.prisma.package.findUnique({
+        where: { id: input.packageId },
+        select: { serviceId: true },
+      });
+      if (!pkg) throw new NotFoundException('Package not found');
+      serviceId = pkg.serviceId;
+    }
 
     const booking = await this.prisma.$transaction(async (tx) => {
       const b = await tx.booking.create({
         data: {
           customerId: input.customerId,
           customerAddressId: input.customerAddressId,
-          serviceId: input.serviceId,
+          serviceId,
+          serviceVariantId: input.serviceVariantId ?? null,
+          packageId: input.packageId ?? null,
           scheduledDate: new Date(input.scheduledDate),
           scheduledTime: input.scheduledTime,
           amount: input.amount,
