@@ -54,12 +54,12 @@ model RefreshToken {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   otpHash   String
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -72,100 +72,237 @@ model PasswordResetToken {
 // Phase 2 — Catalog (Categories, SubCategories, Services) + Geography
 // ---------------------------------------------------------------------------
 
-enum PriceType {
-  FIXED
-  STARTING
-  HOURLY
-}
-
-enum DurationUnit {
-  MINUTES
-  HOURS
-}
-
-enum SkillLevel {
-  BEGINNER
-  INTERMEDIATE
-  ADVANCED
-}
-
 model Category {
-  id              String   @id @default(cuid())
-  slug            String   @unique
-  name            String
-  icon            String?
-  color           String?
-  description     String?
-  imageUrl        String?
-  displayOrder    Int      @default(0)
-  active          Boolean  @default(true)
-  priceRangeMin   Int?
-  priceRangeMax   Int?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  name          String
+  icon          String?
+  color         String?
+  description   String?
+  imageUrl      String?
+  displayOrder  Int      @default(0)
+  active        Boolean  @default(true)
+  priceRangeMin Int?
+  priceRangeMax Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  subCategories SubCategory[]
-  services      Service[]
-  partners      Partner[]
-  applicants    Applicant[]
-  promoCodes    PromoCode[]
+  services   Service[]
+  partners   Partner[]
+  applicants Applicant[]
+  promoCodes PromoCode[]
 
   @@map("categories")
 }
 
-model SubCategory {
-  id           String   @id @default(cuid())
-  categoryId   String
-  slug         String
-  name         String
-  description  String?
-  displayOrder Int      @default(0)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+/// First-class promotional sticker shown on a Service browse card. Admin-curated
+/// runtime data (slug, name, color, validity window) — same pattern as Tab.
+/// Replaces the former ServiceBadge enum so marketing can add new badges with no DDL.
+model Badge {
+  id           String    @id @default(cuid())
+  slug         String    @unique // "new", "popular", "trending", "exclusive"
+  name         String // "New Arrival"
+  color        String?
+  icon         String?
+  displayOrder Int       @default(0)
+  active       Boolean   @default(true)
+  validFrom    DateTime? // optional campaign window
+  validUntil   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  category Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   services Service[]
 
-  @@unique([categoryId, slug])
-  @@index([categoryId])
-  @@map("sub_categories")
+  @@index([active, displayOrder])
+  @@map("badges")
 }
 
 model Service {
-  id                 String       @id @default(cuid())
+  id                 String   @id @default(cuid())
   categoryId         String
-  subCategoryId      String
   name               String
   description        String?
-  priceType          PriceType    @default(FIXED)
-  price              Decimal      @db.Decimal(12, 2)
-  duration           Int?
-  durationUnit       DurationUnit @default(MINUTES)
-  whatsIncluded      String[]     @default([])
-  tags               String[]     @default([])
+  /// "Starting from" base price shown on the browse card. The actual bookable
+  /// price lives on each ServiceVariant.
+  price              Decimal  @db.Decimal(12, 2)
+  duration           Int? // minutes; ServiceVariant.duration (also minutes) overrides per variant
+  whatsIncluded      String[] @default([])
+  tags               String[] @default([])
   imageUrl           String?
-  icon               String?
-  isPopular          Boolean      @default(false)
-  highlightOnHome    Boolean      @default(false)
-  requiresInspection Boolean      @default(false)
-  materialsIncluded  Boolean      @default(false)
+  /// Admin-marked promotional flag at the Service level. Drives Service ordering
+  /// in lists and recommendations. Distinct from variant Popular-tab membership
+  /// (see Tab / VariantTab) and from a Service's POPULAR Badge (visual sticker).
+  /// Same word, different surfaces — do not conflate.
+  isPopular          Boolean  @default(false)
+  requiresInspection Boolean  @default(false)
+  materialsIncluded  Boolean  @default(false)
   materialsNote      String?
-  skillLevel         SkillLevel?
-  active             Boolean      @default(true)
-  displayOrder       Int          @default(0)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  /// Denormalized aggregate rating shown on browse cards / service detail.
+  /// Recomputed when a Review lands — same pattern as Partner.rating/totalJobs.
+  ratingAvg          Decimal? @db.Decimal(3, 2)
+  reviewCount        Int      @default(0)
+  badgeId            String?
+  active             Boolean  @default(true)
+  displayOrder       Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  category    Category      @relation(fields: [categoryId], references: [id])
-  subCategory SubCategory   @relation(fields: [subCategoryId], references: [id])
-  cities      ServiceCity[]
-  bookings    Booking[]
+  category     Category         @relation(fields: [categoryId], references: [id])
+  badge        Badge?           @relation(fields: [badgeId], references: [id], onDelete: SetNull)
+  cities       ServiceCity[]
+  bookings     Booking[]
+  variants     ServiceVariant[]
+  packages     Package[]
+  homeFeatures HomeFeature[]
 
   @@index([categoryId])
-  @@index([subCategoryId])
+  @@index([badgeId])
   @@index([active])
   @@map("services")
+}
+
+model ServiceVariant {
+  id            String   @id @default(cuid())
+  serviceId     String
+  name          String
+  description   String?
+  imageUrl      String?
+  /// Net, bookable amount (PKR) — this is what Booking.amount is set to.
+  price         Decimal  @db.Decimal(12, 2)
+  /// Struck-through list price for display. Null = no discount shown.
+  originalPrice Decimal? @db.Decimal(12, 2)
+  /// Display-only badge (0–100); derived from (originalPrice - price)/originalPrice.
+  discountPct   Int      @default(0)
+  duration      Int? // minutes; overrides Service.duration if set
+  active        Boolean  @default(true)
+  displayOrder  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  service      Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
+  packageItems PackageItem[]
+  tabs         VariantTab[] // many-to-many via VariantTab
+
+  @@index([serviceId, displayOrder])
+  @@index([active])
+  @@map("service_variants")
+}
+
+/// First-class discovery tab on the customer service-detail screen (Offers /
+/// Popular / Deals / …). Admin-curated runtime data — adding a campaign tab is a
+/// row insert, no DDL. A variant joins 0+ tabs via VariantTab.
+model Tab {
+  id           String    @id @default(cuid())
+  slug         String    @unique // "offers", "popular", "deals"
+  name         String // "Special Offers For You"
+  description  String?
+  displayOrder Int       @default(0)
+  active       Boolean   @default(true)
+  validFrom    DateTime?
+  validUntil   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  variants VariantTab[]
+
+  @@index([active, displayOrder])
+  @@map("tabs")
+}
+
+model VariantTab {
+  variantId String
+  tabId     String
+  createdAt DateTime @default(now())
+
+  variant ServiceVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  tab     Tab            @relation(fields: [tabId], references: [id], onDelete: Cascade)
+
+  @@id([variantId, tabId])
+  @@index([tabId])
+  @@map("variant_tabs")
+}
+
+/// Real bundle of ServiceVariant rows from one parent Service at a combined price.
+model Package {
+  id            String   @id @default(cuid())
+  serviceId     String // parent Service that owns this package
+  name          String
+  description   String?
+  imageUrl      String?
+  price         Decimal  @db.Decimal(12, 2) // absolute bundle price
+  originalPrice Decimal? @db.Decimal(12, 2) // snapshot of sum-of-items at create time
+  duration      Int? // minutes; overrides sum of item durations if set
+  active        Boolean  @default(true)
+  displayOrder  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  service  Service       @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  items    PackageItem[]
+  bookings Booking[]
+
+  @@index([serviceId, displayOrder])
+  @@index([active])
+  @@map("packages")
+}
+
+model PackageItem {
+  packageId        String
+  serviceVariantId String
+  quantity         Int    @default(1)
+  displayOrder     Int    @default(0)
+
+  package Package        @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  variant ServiceVariant @relation(fields: [serviceVariantId], references: [id], onDelete: Restrict)
+
+  @@id([packageId, serviceVariantId])
+  @@index([packageId])
+  @@index([serviceVariantId])
+  @@map("package_items")
+}
+
+/// Admin-curated home-screen row. Promoted from a fixed enum so marketing can
+/// add new rows ("Featured This Week", "Near You") and reorder them without DDL.
+/// Same first-class-entity pattern as Tab / Badge.
+model HomeSection {
+  id           String    @id @default(cuid())
+  slug         String    @unique // "top-services", "recommended"
+  name         String // "Top Services" — banner title shown on the home row
+  description  String? // optional subtitle for the row
+  displayOrder Int       @default(0)
+  active       Boolean   @default(true)
+  validFrom    DateTime? // optional campaign window
+  validUntil   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  features HomeFeature[]
+
+  @@index([active, displayOrder])
+  @@map("home_sections")
+}
+
+/// Admin-curated home-screen feature placement. Single source of truth for which
+/// Service appears in which HomeSection, in what order, optionally time-boxed.
+model HomeFeature {
+  id           String    @id @default(cuid())
+  sectionId    String
+  serviceId    String
+  displayOrder Int       @default(0)
+  active       Boolean   @default(true)
+  validFrom    DateTime? // null = always
+  validUntil   DateTime? // null = never expires
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  section HomeSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  service Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([sectionId, serviceId])
+  @@index([sectionId, displayOrder])
+  @@index([active])
+  @@map("home_features")
 }
 
 model City {
@@ -273,25 +410,25 @@ model Customer {
 }
 
 model CustomerAddress {
-  id              String       @id @default(cuid())
-  customerId      String
-  label           AddressLabel @default(HOME)
-  fullAddress     String
-  houseNumber     String?
-  street          String?
-  area            String?
-  cityId          String?
-  province        String?
-  postalCode      String?
-  landmark        String?
-  isDefault       Boolean      @default(false)
-  assignedZoneId  String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  customerId     String
+  label          AddressLabel @default(HOME)
+  fullAddress    String
+  houseNumber    String?
+  street         String?
+  area           String?
+  cityId         String?
+  province       String?
+  postalCode     String?
+  landmark       String?
+  isDefault      Boolean      @default(false)
+  assignedZoneId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  city         City?    @relation(fields: [cityId], references: [id])
-  assignedZone Zone?    @relation("ZoneAssignedAddresses", fields: [assignedZoneId], references: [id])
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  city         City?     @relation(fields: [cityId], references: [id])
+  assignedZone Zone?     @relation("ZoneAssignedAddresses", fields: [assignedZoneId], references: [id])
   bookings     Booking[]
 
   @@index([customerId])
@@ -384,10 +521,19 @@ enum ActivityEntityType {
   BOOKING
   COMMISSION
   PARTNER
+  // catalog mutations
+  CATEGORY
+  SERVICE
+  SERVICE_VARIANT
+  PACKAGE
+  TAB
+  BADGE
+  HOME_FEATURE
+  HOME_SECTION
 }
 
 model Applicant {
-  id                String              @id @default(cuid())
+  id                String               @id @default(cuid())
   name              String
   phone             String
   email             String?
@@ -397,21 +543,21 @@ model Applicant {
   address           String?
   experience        ApplicantExperience?
   source            String?
-  status            ApplicantStatus     @default(PENDING)
-  profileCompletion Int                 @default(0)
-  hasResubmitted    Boolean             @default(false)
-  reviewCount       Int                 @default(0)
-  appliedAt         DateTime            @default(now())
+  status            ApplicantStatus      @default(PENDING)
+  profileCompletion Int                  @default(0)
+  hasResubmitted    Boolean              @default(false)
+  reviewCount       Int                  @default(0)
+  appliedAt         DateTime             @default(now())
   approvedAt        DateTime?
   rejectedAt        DateTime?
   rejectionReason   String?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
-  city       City?                @relation(fields: [cityId], references: [id])
-  category   Category?            @relation(fields: [categoryId], references: [id])
-  documents  ApplicantDocument[]
-  test       ApplicantTest?
+  city      City?               @relation(fields: [cityId], references: [id])
+  category  Category?           @relation(fields: [categoryId], references: [id])
+  documents ApplicantDocument[]
+  test      ApplicantTest?
 
   @@index([status])
   @@index([cityId])
@@ -439,24 +585,24 @@ model ApplicantDocument {
 }
 
 model ApplicantTest {
-  id              String   @id @default(cuid())
-  applicantId     String   @unique
-  venueName       String?
-  scheduledAt     DateTime?
-  scoredAt        DateTime?
-  attended        Boolean  @default(false)
-  scoreSafety     Int?
-  scoreTools      Int?
-  scorePractical  Int?
-  scoreCustomer   Int?
-  scoreDocs       Int?
-  totalScore      Int?
-  passed          Boolean?
-  notes           String?
+  id                String    @id @default(cuid())
+  applicantId       String    @unique
+  venueName         String?
+  scheduledAt       DateTime?
+  scoredAt          DateTime?
+  attended          Boolean   @default(false)
+  scoreSafety       Int?
+  scoreTools        Int?
+  scorePractical    Int?
+  scoreCustomer     Int?
+  scoreDocs         Int?
+  totalScore        Int?
+  passed            Boolean?
+  notes             String?
   scheduledByUserId String?
   scoredByUserId    String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   applicant Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
 
@@ -464,16 +610,16 @@ model ApplicantTest {
 }
 
 model ActivityLog {
-  id           String             @id @default(cuid())
-  entityType   ActivityEntityType
-  entityId     String
-  event        String
-  detail       String?
-  actorUserId  String?
-  actorName    String?
-  color        String?
-  meta         Json?
-  createdAt    DateTime           @default(now())
+  id          String             @id @default(cuid())
+  entityType  ActivityEntityType
+  entityId    String
+  event       String
+  detail      String?
+  actorUserId String?
+  actorName   String?
+  color       String?
+  meta        Json?
+  createdAt   DateTime           @default(now())
 
   @@index([entityType, entityId, createdAt(sort: Desc)])
   @@index([actorUserId])
@@ -527,32 +673,39 @@ enum CancelReason {
 }
 
 model Booking {
-  id                 String         @id @default(cuid())
-  customerId         String
-  customerAddressId  String
-  serviceId          String
-  partnerId          String?
-  status             BookingStatus  @default(PENDING)
-  scheduledDate      DateTime
-  scheduledTime      String
-  amount             Decimal        @db.Decimal(12, 2)
-  autoAssigned       Boolean        @default(false)
-  assignedAt         DateTime?
-  assignedBy         AssignedBy?
-  paymentStatus      PaymentStatus  @default(PENDING)
-  paymentMethod      String?
-  cancelReason       CancelReason?
-  cancelDetail       String?
-  cancelledByUserId  String?
-  cancelledAt        DateTime?
-  notes              String?
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  id                String        @id @default(cuid())
+  customerId        String
+  customerAddressId String
+  /// Denormalized parent Service, set server-side from the variant's or package's
+  /// serviceId. Keeps existing filters/indexes/dispatch working. Exactly one of
+  /// serviceVariantId / packageId is set (app-level guard + DB CHECK constraint).
+  serviceId         String
+  serviceVariantId  String?
+  packageId         String?
+  partnerId         String?
+  status            BookingStatus @default(PENDING)
+  scheduledDate     DateTime
+  scheduledTime     String
+  amount            Decimal       @db.Decimal(12, 2)
+  autoAssigned      Boolean       @default(false)
+  assignedAt        DateTime?
+  assignedBy        AssignedBy?
+  paymentStatus     PaymentStatus @default(PENDING)
+  paymentMethod     String?
+  cancelReason      CancelReason?
+  cancelDetail      String?
+  cancelledByUserId String?
+  cancelledAt       DateTime?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
-  customer        Customer        @relation(fields: [customerId], references: [id])
-  customerAddress CustomerAddress @relation(fields: [customerAddressId], references: [id])
-  service         Service         @relation(fields: [serviceId], references: [id])
-  partner         Partner?        @relation(fields: [partnerId], references: [id])
+  customer        Customer               @relation(fields: [customerId], references: [id])
+  customerAddress CustomerAddress        @relation(fields: [customerAddressId], references: [id])
+  service         Service                @relation(fields: [serviceId], references: [id])
+  serviceVariant  ServiceVariant?        @relation(fields: [serviceVariantId], references: [id], onDelete: Restrict)
+  package         Package?               @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  partner         Partner?               @relation(fields: [partnerId], references: [id])
   statusHistory   BookingStatusHistory[]
   review          Review?
 
@@ -560,17 +713,19 @@ model Booking {
   @@index([partnerId])
   @@index([status])
   @@index([scheduledDate])
+  @@index([serviceVariantId])
+  @@index([packageId])
   @@map("bookings")
 }
 
 model BookingStatusHistory {
-  id          String        @id @default(cuid())
-  bookingId   String
-  fromStatus  BookingStatus?
-  toStatus    BookingStatus
-  reason      String?
-  byUserId    String?
-  createdAt   DateTime      @default(now())
+  id         String         @id @default(cuid())
+  bookingId  String
+  fromStatus BookingStatus?
+  toStatus   BookingStatus
+  reason     String?
+  byUserId   String?
+  createdAt  DateTime       @default(now())
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
@@ -609,54 +764,54 @@ enum CommissionEventKind {
 }
 
 model CommissionSettings {
-  id                   String   @id @default("singleton")
-  categoryRates        Json     @default("{}")
-  defaultRatePercent   Decimal  @default(15) @db.Decimal(5, 2)
-  deadlineDayOfWeek    Int      @default(6) // 0=Sun … 6=Sat
-  deadlineHourLocal    Int      @default(23)
-  deadlineMinuteLocal  Int      @default(59)
-  timezone             String   @default("Asia/Karachi")
-  warning1Hours        Int      @default(24)
-  warning2Hours        Int      @default(48)
-  suspensionHours      Int      @default(72)
-  autoSuspensionEnabled Boolean @default(true)
-  penaltyFineFixed     Decimal  @default(200) @db.Decimal(12, 2)
-  penaltyPercentage    Decimal  @default(20) @db.Decimal(5, 2)
-  maxFineCap           Decimal  @default(500) @db.Decimal(12, 2)
-  notifyEmail          Boolean  @default(true)
-  notifyPush           Boolean  @default(true)
-  notifySms            Boolean  @default(false)
-  updatedAt            DateTime @updatedAt
+  id                    String   @id @default("singleton")
+  categoryRates         Json     @default("{}")
+  defaultRatePercent    Decimal  @default(15) @db.Decimal(5, 2)
+  deadlineDayOfWeek     Int      @default(6) // 0=Sun … 6=Sat
+  deadlineHourLocal     Int      @default(23)
+  deadlineMinuteLocal   Int      @default(59)
+  timezone              String   @default("Asia/Karachi")
+  warning1Hours         Int      @default(24)
+  warning2Hours         Int      @default(48)
+  suspensionHours       Int      @default(72)
+  autoSuspensionEnabled Boolean  @default(true)
+  penaltyFineFixed      Decimal  @default(200) @db.Decimal(12, 2)
+  penaltyPercentage     Decimal  @default(20) @db.Decimal(5, 2)
+  maxFineCap            Decimal  @default(500) @db.Decimal(12, 2)
+  notifyEmail           Boolean  @default(true)
+  notifyPush            Boolean  @default(true)
+  notifySms             Boolean  @default(false)
+  updatedAt             DateTime @updatedAt
 
   @@map("commission_settings")
 }
 
 model Commission {
-  id                String           @id @default(cuid())
-  partnerId         String
-  weekStart         DateTime         @db.Date
-  weekEnd           DateTime         @db.Date
-  jobsCount         Int              @default(0)
-  cashCollected     Decimal          @default(0) @db.Decimal(12, 2)
-  commissionRate    Decimal          @db.Decimal(5, 2)
-  commissionDue     Decimal          @db.Decimal(12, 2)
-  status            CommissionStatus @default(PENDING)
-  deadline          DateTime
-  submittedAt       DateTime?
-  paymentMethod     String?
-  paymentRef        String?
-  screenshotKey     String?
-  reviewedByUserId  String?
-  reviewedAt        DateTime?
-  penaltyFine       Decimal          @default(0) @db.Decimal(12, 2)
-  finePaid          Boolean          @default(false)
-  warning1At        DateTime?
-  warning2At        DateTime?
-  suspendedAt       DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  id               String           @id @default(cuid())
+  partnerId        String
+  weekStart        DateTime         @db.Date
+  weekEnd          DateTime         @db.Date
+  jobsCount        Int              @default(0)
+  cashCollected    Decimal          @default(0) @db.Decimal(12, 2)
+  commissionRate   Decimal          @db.Decimal(5, 2)
+  commissionDue    Decimal          @db.Decimal(12, 2)
+  status           CommissionStatus @default(PENDING)
+  deadline         DateTime
+  submittedAt      DateTime?
+  paymentMethod    String?
+  paymentRef       String?
+  screenshotKey    String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  penaltyFine      Decimal          @default(0) @db.Decimal(12, 2)
+  finePaid         Boolean          @default(false)
+  warning1At       DateTime?
+  warning2At       DateTime?
+  suspendedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  partner Partner             @relation(fields: [partnerId], references: [id])
+  partner Partner           @relation(fields: [partnerId], references: [id])
   jobs    CommissionJob[]
   events  CommissionEvent[]
 
@@ -667,14 +822,14 @@ model Commission {
 }
 
 model CommissionJob {
-  id            String   @id @default(cuid())
-  commissionId  String
-  bookingId     String
-  date          DateTime
-  jobName       String
-  customerPaid  Decimal  @db.Decimal(12, 2)
-  commission    Decimal  @db.Decimal(12, 2)
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  commissionId String
+  bookingId    String
+  date         DateTime
+  jobName      String
+  customerPaid Decimal  @db.Decimal(12, 2)
+  commission   Decimal  @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
 
   commission_ Commission @relation(fields: [commissionId], references: [id], onDelete: Cascade)
 
@@ -703,17 +858,17 @@ model CommissionEvent {
 // ---------------------------------------------------------------------------
 
 model Review {
-  id          String   @id @default(cuid())
-  bookingId   String   @unique
+  id          String    @id @default(cuid())
+  bookingId   String    @unique
   customerId  String
   partnerId   String
   rating      Int
   comment     String?
-  helpful     Int      @default(0)
+  helpful     Int       @default(0)
   response    String?
   respondedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id])
@@ -737,20 +892,20 @@ enum PromoStatus {
 }
 
 model PromoCode {
-  id             String            @id @default(cuid())
-  code           String            @unique
-  description    String?
-  discountType   PromoDiscountType
-  discountValue  Decimal           @db.Decimal(12, 2)
-  categoryId     String?
-  minOrderValue  Decimal?          @db.Decimal(12, 2)
-  maxUses        Int               @default(0)
-  usedCount      Int               @default(0)
-  validFrom      DateTime
-  validUntil     DateTime
-  status         PromoStatus       @default(ACTIVE)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  id            String            @id @default(cuid())
+  code          String            @unique
+  description   String?
+  discountType  PromoDiscountType
+  discountValue Decimal           @db.Decimal(12, 2)
+  categoryId    String?
+  minOrderValue Decimal?          @db.Decimal(12, 2)
+  maxUses       Int               @default(0)
+  usedCount     Int               @default(0)
+  validFrom     DateTime
+  validUntil    DateTime
+  status        PromoStatus       @default(ACTIVE)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   category Category? @relation(fields: [categoryId], references: [id])
 
