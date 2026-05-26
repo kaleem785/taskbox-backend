@@ -21,19 +21,50 @@ export type UploadPurpose =
   | 'verification.certificate'
   | 'verification.experience'
   | 'partner.profilePhoto'
-  | 'commission.proof'
-  | 'category.image';
+  | 'commission.proof';
 
-/** Square pixel size the backend resizes category illustrations to before storage. */
-export const CATEGORY_IMAGE_DIMENSION = 512;
-/** Hard cap on incoming category image bytes (the resized PNG is much smaller). */
-export const CATEGORY_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-/** MIME types accepted by the category-image upload endpoint. */
-export const CATEGORY_IMAGE_MIME_ALLOWLIST = [
+/** Catalog image kinds accepted by POST /uploads/catalog-image. `icon` kinds are
+ *  resized to a square transparent PNG (suitable for the customer icon grid).
+ *  `hero` kinds are resized fit-inside while preserving aspect + original
+ *  format (suitable for service hero photos and variant/package cards). */
+export type CatalogImageKind =
+  | 'category'
+  | 'service-icon'
+  | 'service-image'
+  | 'variant'
+  | 'package';
+
+export const CATALOG_IMAGE_KINDS: readonly CatalogImageKind[] = [
+  'category',
+  'service-icon',
+  'service-image',
+  'variant',
+  'package',
+];
+
+/** Square pixel size icon-mode catalog images are resized to before storage. */
+export const CATALOG_ICON_DIMENSION = 512;
+/** Max long-edge pixel size hero-mode catalog images are resized to. */
+export const CATALOG_HERO_MAX_DIMENSION = 1600;
+/** Hard cap on incoming catalog image bytes. */
+export const CATALOG_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+/** MIME types accepted by the catalog-image upload endpoint. */
+export const CATALOG_IMAGE_MIME_ALLOWLIST = [
   'image/png',
   'image/jpeg',
   'image/webp',
 ] as const;
+
+const CATALOG_KIND_RULES: Record<
+  CatalogImageKind,
+  { prefix: string; mode: 'icon' | 'hero' }
+> = {
+  category: { prefix: 'catalog/categories', mode: 'icon' },
+  'service-icon': { prefix: 'catalog/services/icons', mode: 'icon' },
+  'service-image': { prefix: 'catalog/services/images', mode: 'hero' },
+  variant: { prefix: 'catalog/variants', mode: 'hero' },
+  package: { prefix: 'catalog/packages', mode: 'hero' },
+};
 
 const PURPOSE_RULES: Record<
   UploadPurpose,
@@ -73,14 +104,6 @@ const PURPOSE_RULES: Record<
     prefix: (id) => `commission/${id}/proof`,
     mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp'],
     maxBytes: 5 * 1024 * 1024,
-  },
-  // Note: 'category.image' is uploaded via uploadResizedImage() (multipart through the
-  // backend), not via getPresignedUploadUrl. The rule is here only for completeness; the
-  // multipart endpoint enforces its own limits via CATEGORY_IMAGE_* constants above.
-  'category.image': {
-    prefix: (id) => `category/${id}`,
-    mimeAllowlist: [...CATEGORY_IMAGE_MIME_ALLOWLIST],
-    maxBytes: CATEGORY_IMAGE_MAX_BYTES,
   },
 };
 
@@ -163,28 +186,27 @@ export class StorageService {
   }
 
   /**
-   * Normalizes an arbitrary admin-uploaded image into a fixed 512x512 transparent PNG
-   * and PUTs it directly to R2. Returns the storage key plus the public URL the row
-   * should persist (always `${publicBaseUrl}/${key}`, no signing).
+   * Normalizes an admin-uploaded catalog image and PUTs it directly to R2.
+   * Returns the storage key plus the public URL the row should persist
+   * (always `${publicBaseUrl}/${key}`, no signing).
    *
-   * Used for category illustrations today; suitable for any "icon-shaped" image that
-   * should look identical across screens. Heavy enough (sharp) that callers should
-   * await on a request thread, not a hot loop.
+   * - `icon` kinds (category, service-icon) → 512x512 transparent PNG.
+   * - `hero` kinds (service-image, variant, package) → fit-inside 1600px on
+   *   the long edge, preserves aspect ratio and original format (PNG/JPEG/WebP).
    */
-  async uploadResizedImage(input: {
+  async uploadCatalogImage(input: {
     buffer: Buffer;
     mimeType: string;
-    entityId: string;
-    purpose: Extract<UploadPurpose, 'category.image'>;
+    kind: CatalogImageKind;
   }): Promise<{ key: string; url: string }> {
-    if (!(CATEGORY_IMAGE_MIME_ALLOWLIST as readonly string[]).includes(input.mimeType)) {
+    if (!(CATALOG_IMAGE_MIME_ALLOWLIST as readonly string[]).includes(input.mimeType)) {
       throw new BadRequestException(
-        `mimeType not allowed for ${input.purpose}: ${input.mimeType}`,
+        `mimeType not allowed for catalog upload: ${input.mimeType}`,
       );
     }
-    if (input.buffer.length > CATEGORY_IMAGE_MAX_BYTES) {
+    if (input.buffer.length > CATALOG_IMAGE_MAX_BYTES) {
       throw new BadRequestException(
-        `File exceeds max size for ${input.purpose}: ${CATEGORY_IMAGE_MAX_BYTES} bytes`,
+        `File exceeds max size: ${CATALOG_IMAGE_MAX_BYTES} bytes`,
       );
     }
     if (!this.client) {
@@ -196,30 +218,47 @@ export class StorageService {
       );
     }
 
-    let resized: Buffer;
+    const rule = CATALOG_KIND_RULES[input.kind];
+    if (!rule) throw new BadRequestException(`Unknown kind: ${input.kind}`);
+
+    let body: Buffer;
+    let outputMime: string;
+    let ext: string;
     try {
-      resized = await sharp(input.buffer)
-        .resize(CATEGORY_IMAGE_DIMENSION, CATEGORY_IMAGE_DIMENSION, {
-          fit: 'contain',
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        })
-        .png({ compressionLevel: 9 })
-        .toBuffer();
+      if (rule.mode === 'icon') {
+        body = await sharp(input.buffer)
+          .resize(CATALOG_ICON_DIMENSION, CATALOG_ICON_DIMENSION, {
+            fit: 'contain',
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          })
+          .png({ compressionLevel: 9 })
+          .toBuffer();
+        outputMime = 'image/png';
+        ext = '.png';
+      } else {
+        body = await sharp(input.buffer)
+          .resize(CATALOG_HERO_MAX_DIMENSION, CATALOG_HERO_MAX_DIMENSION, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .toBuffer();
+        outputMime = input.mimeType;
+        ext = guessExtension(input.mimeType);
+      }
     } catch (err) {
       this.logger.warn(`sharp failed to process image: ${(err as Error).message}`);
       throw new BadRequestException('Could not process image (corrupt or unsupported).');
     }
 
-    const rule = PURPOSE_RULES[input.purpose];
-    const key = `${rule.prefix(input.entityId)}/${randomUUID()}.png`;
+    const key = `${rule.prefix}/${randomUUID()}${ext}`;
 
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
-        Body: resized,
-        ContentType: 'image/png',
-        ContentLength: resized.length,
+        Body: body,
+        ContentType: outputMime,
+        ContentLength: body.length,
         CacheControl: 'public, max-age=31536000, immutable',
       }),
     );

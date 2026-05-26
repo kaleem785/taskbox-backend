@@ -93,7 +93,7 @@ const BADGES = [
 
 // ── Categories (mirror the customer demo's six categories) ────────────────────
 //
-// imageUrl points at objects uploaded by the one-off `seed-category-images.ts`
+// iconUrl points at objects uploaded by the one-off `seed-category-images.ts`
 // bootstrap script (run manually on a fresh environment). If R2_PUBLIC_BASE_URL is
 // not set the URLs will be obviously broken (`undefined/category/seed/<slug>.png`)
 // — that's intentional, so a misconfigured env fails loudly during seeding.
@@ -106,42 +106,42 @@ const CATEGORIES = [
     slug: 'cleaning',
     name: 'Cleaning',
     description: 'Deep cleaning and sanitization services',
-    imageUrl: seedImage('cleaning'),
+    iconUrl: seedImage('cleaning'),
     displayOrder: 1,
   },
   {
     slug: 'plumbing',
     name: 'Plumbing',
     description: 'Expert plumbing solutions for homes and offices',
-    imageUrl: seedImage('plumbing'),
+    iconUrl: seedImage('plumbing'),
     displayOrder: 2,
   },
   {
     slug: 'electrical',
     name: 'Electrical',
     description: 'Certified electricians for all electrical needs',
-    imageUrl: seedImage('electrical'),
+    iconUrl: seedImage('electrical'),
     displayOrder: 3,
   },
   {
     slug: 'ac-repair',
     name: 'AC Repair',
     description: 'AC installation, gas refill, and servicing',
-    imageUrl: seedImage('ac-repair'),
+    iconUrl: seedImage('ac-repair'),
     displayOrder: 4,
   },
   {
     slug: 'painting',
     name: 'Painting',
     description: 'Professional interior and exterior painting',
-    imageUrl: seedImage('painting'),
+    iconUrl: seedImage('painting'),
     displayOrder: 5,
   },
   {
     slug: 'salon',
     name: 'Salon',
     description: 'At-home grooming and salon services',
-    imageUrl: seedImage('salon'),
+    iconUrl: seedImage('salon'),
     displayOrder: 6,
   },
 ];
@@ -357,12 +357,12 @@ async function seedCategories(): Promise<Map<string, string>> {
   for (const cat of CATEGORIES) {
     const category = await prisma.category.upsert({
       where: { slug: cat.slug },
-      // Re-seeding should refresh the demo metadata (especially imageUrl after the
+      // Re-seeding should refresh the demo metadata (especially iconUrl after the
       // bootstrap script runs) without disturbing admin-created categories.
       update: {
         name: cat.name,
         description: cat.description,
-        imageUrl: cat.imageUrl,
+        iconUrl: cat.iconUrl,
         displayOrder: cat.displayOrder,
       },
       create: cat,
