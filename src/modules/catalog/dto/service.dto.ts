@@ -60,6 +60,14 @@ export class CreateServiceDto {
   @IsString()
   imageUrl?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Flat illustration / transparent PNG or SVG shown on the customer All-Services icon grid. Distinct from imageUrl (photographic hero).',
+  })
+  @IsOptional()
+  @IsString()
+  iconUrl?: string;
+
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()

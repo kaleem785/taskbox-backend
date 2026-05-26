@@ -35,6 +35,16 @@ export class CreateServiceVariantDto {
   @Min(0)
   price!: number;
 
+  @ApiPropertyOptional({
+    description: 'Struck-through list price for display; must be >= price. Null clears it.',
+    nullable: true,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  originalPrice?: number;
+
   @ApiPropertyOptional({ default: 0, description: '0–100' })
   @IsOptional()
   @Type(() => Number)

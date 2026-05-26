@@ -6,6 +6,7 @@ import {
   Param,
   ParseFilePipeBuilder,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import {
   ApiBody,
   ApiConsumes,
   ApiOperation,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 // Registers `Express.Multer.File` on the global Express namespace.
@@ -25,8 +27,10 @@ import { Role } from '../../prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PresignedUploadDto } from './dto/presigned-upload.dto';
 import {
-  CATEGORY_IMAGE_MAX_BYTES,
-  CATEGORY_IMAGE_MIME_ALLOWLIST,
+  CATALOG_IMAGE_KINDS,
+  CATALOG_IMAGE_MAX_BYTES,
+  CATALOG_IMAGE_MIME_ALLOWLIST,
+  CatalogImageKind,
   StorageService,
 } from './storage.service';
 
@@ -59,54 +63,63 @@ export class StorageController {
   }
 
   /**
-   * Multipart upload for category illustrations. The backend resizes to a square
-   * 512x512 transparent PNG with sharp, then PUTs directly to R2. Returns the
-   * permanent public URL the admin can persist on Category.imageUrl.
+   * Multipart upload for any catalog image: Category icon, Service icon,
+   * Service hero, Variant image, or Package image. Sharp normalizes the
+   * upload (square-transparent PNG for `icon` kinds; fit-inside resize for
+   * `hero` kinds) and PUTs it to R2. Returns the permanent public URL the
+   * admin can persist on the corresponding row (`Category.iconUrl`,
+   * `Service.iconUrl` / `Service.imageUrl`, `ServiceVariant.imageUrl`,
+   * `Package.imageUrl`).
    *
-   * Admin-only: this endpoint mutates bucket contents. Browsers must send
-   * `multipart/form-data` with a `file` part (the image) and a `categoryId`
-   * text part (used to namespace the object key under category/<id>/...).
+   * Admin-only: mutates bucket contents. Send `multipart/form-data` with a
+   * `file` part; `kind` is a required query parameter.
    */
   @Roles(Role.ADMIN)
-  @Post('category-image')
+  @Post('catalog-image')
   @ApiOperation({
-    summary: 'Upload + resize a category illustration; returns the public URL',
+    summary:
+      'Upload + normalize a catalog image (category / service-icon / service-image / variant / package); returns the public URL',
   })
   @ApiConsumes('multipart/form-data')
+  @ApiQuery({
+    name: 'kind',
+    required: true,
+    enum: CATALOG_IMAGE_KINDS as unknown as string[],
+  })
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['file', 'categoryId'],
+      required: ['file'],
       properties: {
         file: { type: 'string', format: 'binary' },
-        categoryId: { type: 'string' },
       },
     },
   })
   @UseInterceptors(
-    FileInterceptor('file', { limits: { fileSize: CATEGORY_IMAGE_MAX_BYTES } }),
+    FileInterceptor('file', { limits: { fileSize: CATALOG_IMAGE_MAX_BYTES } }),
   )
-  async uploadCategoryImage(
+  async uploadCatalogImage(
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addFileTypeValidator({
           fileType: new RegExp(
-            `^(${CATEGORY_IMAGE_MIME_ALLOWLIST.join('|').replace(/\//g, '\\/')})$`,
+            `^(${CATALOG_IMAGE_MIME_ALLOWLIST.join('|').replace(/\//g, '\\/')})$`,
           ),
         })
         .build({ fileIsRequired: true }),
     )
     file: Express.Multer.File,
-    @Body('categoryId') categoryId: string,
+    @Query('kind') kind: string,
   ) {
-    if (!categoryId || typeof categoryId !== 'string') {
-      throw new BadRequestException('categoryId is required');
+    if (!CATALOG_IMAGE_KINDS.includes(kind as CatalogImageKind)) {
+      throw new BadRequestException(
+        `kind must be one of: ${CATALOG_IMAGE_KINDS.join(', ')}`,
+      );
     }
-    return this.storage.uploadResizedImage({
+    return this.storage.uploadCatalogImage({
       buffer: file.buffer,
       mimeType: file.mimetype,
-      entityId: categoryId,
-      purpose: 'category.image',
+      kind: kind as CatalogImageKind,
     });
   }
 }

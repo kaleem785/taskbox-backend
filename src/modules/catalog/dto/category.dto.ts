@@ -30,11 +30,11 @@ export class CreateCategoryDto {
 
   @ApiPropertyOptional({
     description:
-      'Public URL of the category illustration (set via POST /uploads/category-image).',
+      'Public URL of the category icon (set via POST /uploads/catalog-image?kind=category).',
   })
   @IsOptional()
   @IsString()
-  imageUrl?: string;
+  iconUrl?: string;
 
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
