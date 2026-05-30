@@ -337,8 +337,10 @@ model Area {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  city  City   @relation(fields: [cityId], references: [id], onDelete: Cascade)
-  zones Zone[]
+  city       City            @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  zones      Zone[]
+  partners   PartnerArea[]
+  applicants ApplicantArea[]
 
   @@unique([cityId, name])
   @@index([cityId])
@@ -356,6 +358,7 @@ model Zone {
   area              Area              @relation(fields: [areaId], references: [id], onDelete: Cascade)
   assignedAddresses CustomerAddress[] @relation("ZoneAssignedAddresses")
   partners          PartnerZone[]
+  applicants        ApplicantZone[]
 
   @@unique([areaId, name])
   @@index([areaId])
@@ -441,25 +444,35 @@ model CustomerAddress {
 }
 
 model Partner {
-  id              String   @id @default(cuid())
+  id              String               @id @default(cuid())
   name            String
-  phone           String   @unique
+  phone           String               @unique
   email           String?
   categoryId      String?
   cityId          String?
-  rating          Decimal  @default(0) @db.Decimal(3, 2)
-  totalJobs       Int      @default(0)
-  availability    Boolean  @default(true)
-  verified        Boolean  @default(false)
-  joinedDate      DateTime @default(now())
+  rating          Decimal              @default(0) @db.Decimal(3, 2)
+  totalJobs       Int                  @default(0)
+  availability    Boolean              @default(true)
+  verified        Boolean              @default(false)
+  joinedDate      DateTime             @default(now())
   profilePhotoKey String?
   tier            String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  cnic            String?
+  whatsapp        String?
+  gender          String? // 'Male' | 'Female' (kept as String to match form)
+  dob             DateTime?
+  address         String?
+  experience      ApplicantExperience? // reuse existing enum
+  applicantId     String?              @unique // audit link to the originating application (null for admin-direct)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
-  category    Category?     @relation(fields: [categoryId], references: [id])
-  city        City?         @relation(fields: [cityId], references: [id])
+  category    Category?         @relation(fields: [categoryId], references: [id])
+  city        City?             @relation(fields: [cityId], references: [id])
+  applicant   Applicant?        @relation(fields: [applicantId], references: [id])
   zones       PartnerZone[]
+  areas       PartnerArea[]
+  documents   PartnerDocument[]
   bookings    Booking[]
   commissions Commission[]
   reviews     Review[]
@@ -481,6 +494,35 @@ model PartnerZone {
   @@id([partnerId, zoneId])
   @@index([zoneId])
   @@map("partner_zones")
+}
+
+model PartnerArea {
+  partnerId String
+  areaId    String
+  createdAt DateTime @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  area    Area    @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@id([partnerId, areaId])
+  @@index([areaId])
+  @@map("partner_areas")
+}
+
+model PartnerDocument {
+  id         String       @id @default(cuid())
+  partnerId  String
+  type       DocumentType
+  fileKey    String?
+  uploadedAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, type])
+  @@index([partnerId])
+  @@map("partner_documents")
 }
 
 // ---------------------------------------------------------------------------
@@ -561,12 +603,41 @@ model Applicant {
   city      City?               @relation(fields: [cityId], references: [id])
   category  Category?           @relation(fields: [categoryId], references: [id])
   documents ApplicantDocument[]
+  areas     ApplicantArea[]
+  zones     ApplicantZone[]
   test      ApplicantTest?
+  partner   Partner?
 
   @@index([status])
   @@index([cityId])
   @@index([categoryId])
   @@map("applicants")
+}
+
+model ApplicantArea {
+  applicantId String
+  areaId      String
+  createdAt   DateTime @default(now())
+
+  applicant Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  area      Area      @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@id([applicantId, areaId])
+  @@index([areaId])
+  @@map("applicant_areas")
+}
+
+model ApplicantZone {
+  applicantId String
+  zoneId      String
+  createdAt   DateTime @default(now())
+
+  applicant Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  zone      Zone      @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@id([applicantId, zoneId])
+  @@index([zoneId])
+  @@map("applicant_zones")
 }
 
 model ApplicantDocument {

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -15,6 +16,7 @@ import {
 } from '../../prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { ZonesService } from '../zones/zones.service';
 import { canTransition } from './state-machine';
 import type {
   ApproveApplicantDto,
@@ -49,6 +51,7 @@ export class VerificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventEmitter2,
+    private readonly zones: ZonesService,
   ) {}
 
   // ── Listing & detail ──────────────────────────────────────────────────────
@@ -77,6 +80,8 @@ export class VerificationService {
         category: { select: { id: true, name: true } },
         city: { select: { id: true, name: true } },
         documents: { orderBy: { type: 'asc' } },
+        areas: { include: { area: { select: { id: true, name: true, cityId: true } } } },
+        zones: { include: { zone: { select: { id: true, name: true, areaId: true } } } },
         test: true,
       },
     });
@@ -92,8 +97,20 @@ export class VerificationService {
   // ── Create & update ───────────────────────────────────────────────────────
 
   async create(input: CreateApplicantDto, actor: Actor): Promise<Applicant> {
+    const { areaIds, zoneIds, ...rest } = input;
+    await this.zones.assertValidCoverage(input.cityId, areaIds, zoneIds);
     const applicant = await this.prisma.$transaction(async (tx) => {
-      const a = await tx.applicant.create({ data: input });
+      const a = await tx.applicant.create({
+        data: {
+          ...rest,
+          areas: areaIds?.length
+            ? { create: areaIds.map((areaId) => ({ areaId })) }
+            : undefined,
+          zones: zoneIds?.length
+            ? { create: zoneIds.map((zoneId) => ({ zoneId })) }
+            : undefined,
+        },
+      });
       // Seed one document row per type (all MISSING)
       await tx.applicantDocument.createMany({
         data: Object.values(DocumentType).map((type) => ({
@@ -121,6 +138,29 @@ export class VerificationService {
 
   update(id: string, input: UpdateApplicantDto): Promise<Applicant> {
     return this.prisma.applicant.update({ where: { id }, data: input });
+  }
+
+  /**
+   * Public app submission. Forces `status: PENDING` and `source: 'App'`, and
+   * dedupes by phone: if a PENDING applicant with the same phone already exists,
+   * it is refreshed and returned instead of creating a duplicate.
+   */
+  async applyFromApp(input: CreateApplicantDto): Promise<Applicant> {
+    const existing = await this.prisma.applicant.findFirst({
+      where: { phone: input.phone, status: ApplicantStatus.PENDING },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing) {
+      // Touch: writing a real field refreshes the @updatedAt timestamp.
+      return this.prisma.applicant.update({
+        where: { id: existing.id },
+        data: { source: existing.source ?? 'App' },
+      });
+    }
+    return this.create(
+      { ...input, source: input.source ?? 'App' },
+      { name: 'Partner App' },
+    );
   }
 
   // ── Documents ─────────────────────────────────────────────────────────────
@@ -282,7 +322,7 @@ export class VerificationService {
   async approve(id: string, input: ApproveApplicantDto, actor: Actor) {
     const applicant = await this.prisma.applicant.findUnique({
       where: { id },
-      include: { documents: true },
+      include: { documents: true, areas: true, zones: true },
     });
     if (!applicant) throw new NotFoundException('Applicant not found');
     if (
@@ -294,42 +334,89 @@ export class VerificationService {
       );
     }
 
-    const partner = await this.prisma.$transaction(async (tx) => {
-      const p = await tx.partner.create({
-        data: {
-          name: applicant.name,
-          phone: applicant.phone,
-          email: applicant.email,
-          categoryId: applicant.categoryId,
-          cityId: applicant.cityId,
-          verified: true,
-          availability: true,
-          tier: input.tier,
-          zones: { create: input.zoneIds.map((zoneId) => ({ zoneId })) },
-        },
+    // Coverage: admin override, else the applicant's submitted selection.
+    const areaIds = input.areaIds ?? applicant.areas.map((a) => a.areaId);
+    const zoneIds = input.zoneIds ?? applicant.zones.map((z) => z.zoneId);
+    if (!zoneIds.length) {
+      throw new BadRequestException(
+        'At least one zone is required to approve a partner',
+      );
+    }
+    await this.zones.assertValidCoverage(applicant.cityId, areaIds, zoneIds);
+
+    // Carry over documents (same opaque R2 keys) + derive profile photo.
+    const docsWithFiles = applicant.documents.filter((d) => d.fileKey);
+    const selfieKey = applicant.documents.find(
+      (d) => d.type === DocumentType.SELFIE && d.fileKey,
+    )?.fileKey;
+
+    let partner;
+    try {
+      partner = await this.prisma.$transaction(async (tx) => {
+        const p = await tx.partner.create({
+          data: {
+            name: applicant.name,
+            phone: applicant.phone,
+            email: applicant.email,
+            cnic: applicant.cnic,
+            address: applicant.address,
+            experience: applicant.experience,
+            categoryId: applicant.categoryId,
+            cityId: applicant.cityId,
+            applicantId: applicant.id,
+            verified: true,
+            availability: true,
+            tier: input.tier,
+            profilePhotoKey: selfieKey ?? undefined,
+            areas: areaIds.length
+              ? { create: areaIds.map((areaId) => ({ areaId })) }
+              : undefined,
+            zones: { create: zoneIds.map((zoneId) => ({ zoneId })) },
+            documents: docsWithFiles.length
+              ? {
+                  create: docsWithFiles.map((d) => ({
+                    type: d.type,
+                    fileKey: d.fileKey,
+                    uploadedAt: d.uploadedAt ?? new Date(),
+                  })),
+                }
+              : undefined,
+          },
+        });
+        await tx.applicant.update({
+          where: { id },
+          data: {
+            status: ApplicantStatus.APPROVED,
+            approvedAt: new Date(),
+            profileCompletion: 100,
+          },
+        });
+        await tx.activityLog.create({
+          data: {
+            entityType: ActivityEntityType.APPLICANT,
+            entityId: id,
+            event: 'application.approved',
+            detail: `Approved · ${zoneIds.length} zones · tier ${input.tier ?? 'Standard'}`,
+            actorUserId: actor.id,
+            actorName: actor.name,
+            color: '#00C853',
+            meta: { areaIds, zoneIds, partnerId: p.id, tier: input.tier },
+          },
+        });
+        return p;
       });
-      await tx.applicant.update({
-        where: { id },
-        data: {
-          status: ApplicantStatus.APPROVED,
-          approvedAt: new Date(),
-          profileCompletion: 100,
-        },
-      });
-      await tx.activityLog.create({
-        data: {
-          entityType: ActivityEntityType.APPLICANT,
-          entityId: id,
-          event: 'application.approved',
-          detail: `Approved · ${input.zoneIds.length} zones · tier ${input.tier ?? 'Standard'}`,
-          actorUserId: actor.id,
-          actorName: actor.name,
-          color: '#00C853',
-          meta: { zoneIds: input.zoneIds, partnerId: p.id, tier: input.tier },
-        },
-      });
-      return p;
-    });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002' &&
+        (err.meta?.target as string[] | undefined)?.includes('phone')
+      ) {
+        throw new ConflictException(
+          'A partner with this phone already exists',
+        );
+      }
+      throw err;
+    }
 
     this.events.emit(VERIFICATION_EVENTS.APPLICANT_APPROVED, {
       applicantId: id,

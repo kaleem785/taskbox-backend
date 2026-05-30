@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Partner, Prisma } from '../../prisma/client';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { DocumentType, Partner, Prisma } from '../../prisma/client';
 
 import { buildPaginatedMeta, Paginated } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ZonesService } from '../zones/zones.service';
 import {
   CreatePartnerDto,
   UpdatePartnerDto,
@@ -10,7 +15,10 @@ import {
 
 @Injectable()
 export class PartnersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly zones: ZonesService,
+  ) {}
 
   async list(params: {
     page: number;
@@ -66,6 +74,12 @@ export class PartnersService {
       include: {
         category: { select: { id: true, name: true } },
         city: { select: { id: true, name: true, province: true } },
+        documents: { orderBy: { type: 'asc' } },
+        areas: {
+          include: {
+            area: { select: { id: true, name: true, cityId: true } },
+          },
+        },
         zones: {
           include: {
             zone: {
@@ -88,40 +102,93 @@ export class PartnersService {
   }
 
   async create(input: CreatePartnerDto): Promise<Partner> {
-    const { zoneIds, ...rest } = input;
-    return this.prisma.partner.create({
-      data: {
-        ...rest,
-        zones: zoneIds?.length
-          ? { create: zoneIds.map((zoneId) => ({ zoneId })) }
-          : undefined,
-      },
-    });
+    const { areaIds, zoneIds, dob, ...rest } = input;
+    await this.zones.assertValidCoverage(input.cityId, areaIds, zoneIds);
+    try {
+      return await this.prisma.partner.create({
+        data: {
+          ...rest,
+          ...(dob ? { dob: new Date(dob) } : {}),
+          areas: areaIds?.length
+            ? { create: areaIds.map((areaId) => ({ areaId })) }
+            : undefined,
+          zones: zoneIds?.length
+            ? { create: zoneIds.map((zoneId) => ({ zoneId })) }
+            : undefined,
+        },
+      });
+    } catch (err) {
+      throw this.rethrowPhoneConflict(err);
+    }
   }
 
   async update(id: string, input: UpdatePartnerDto): Promise<Partner> {
-    const { zoneIds, ...rest } = input;
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.partner.update({ where: { id }, data: rest });
-      if (zoneIds) {
-        await tx.partnerZone.deleteMany({ where: { partnerId: id } });
-        if (zoneIds.length) {
-          await tx.partnerZone.createMany({
-            data: zoneIds.map((zoneId) => ({ partnerId: id, zoneId })),
-            skipDuplicates: true,
-          });
+    const { areaIds, zoneIds, dob, ...rest } = input;
+    // Validate against the partner's effective city (incoming, else stored).
+    let cityId = input.cityId;
+    if (cityId === undefined && (areaIds || zoneIds)) {
+      const current = await this.prisma.partner.findUnique({
+        where: { id },
+        select: { cityId: true },
+      });
+      cityId = current?.cityId ?? undefined;
+    }
+    await this.zones.assertValidCoverage(cityId, areaIds, zoneIds);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const updated = await tx.partner.update({
+          where: { id },
+          data: { ...rest, ...(dob !== undefined ? { dob: dob ? new Date(dob) : null } : {}) },
+        });
+        if (areaIds) {
+          await tx.partnerArea.deleteMany({ where: { partnerId: id } });
+          if (areaIds.length) {
+            await tx.partnerArea.createMany({
+              data: areaIds.map((areaId) => ({ partnerId: id, areaId })),
+              skipDuplicates: true,
+            });
+          }
         }
-      }
-      return updated;
-    });
+        if (zoneIds) {
+          await tx.partnerZone.deleteMany({ where: { partnerId: id } });
+          if (zoneIds.length) {
+            await tx.partnerZone.createMany({
+              data: zoneIds.map((zoneId) => ({ partnerId: id, zoneId })),
+              skipDuplicates: true,
+            });
+          }
+        }
+        return updated;
+      });
+    } catch (err) {
+      throw this.rethrowPhoneConflict(err);
+    }
   }
 
   setAvailability(id: string, availability: boolean): Promise<Partner> {
     return this.prisma.partner.update({ where: { id }, data: { availability } });
   }
 
-  assignZones(id: string, zoneIds: string[]) {
+  /**
+   * Coverage update from the detail-page widget: replaces BOTH the area and
+   * zone join tables atomically after validating the City→Area→Zone selection,
+   * so the two can never drift out of sync.
+   */
+  async assignCoverage(id: string, areaIds: string[], zoneIds: string[]) {
+    const partner = await this.prisma.partner.findUnique({
+      where: { id },
+      select: { cityId: true },
+    });
+    if (!partner) throw new NotFoundException('Partner not found');
+    await this.zones.assertValidCoverage(partner.cityId, areaIds, zoneIds);
     return this.prisma.$transaction(async (tx) => {
+      await tx.partnerArea.deleteMany({ where: { partnerId: id } });
+      if (areaIds.length) {
+        await tx.partnerArea.createMany({
+          data: areaIds.map((areaId) => ({ partnerId: id, areaId })),
+          skipDuplicates: true,
+        });
+      }
       await tx.partnerZone.deleteMany({ where: { partnerId: id } });
       if (zoneIds.length) {
         await tx.partnerZone.createMany({
@@ -131,8 +198,40 @@ export class PartnersService {
       }
       return tx.partner.findUniqueOrThrow({
         where: { id },
-        include: { zones: { include: { zone: true } } },
+        include: {
+          areas: { include: { area: { select: { id: true, name: true } } } },
+          zones: { include: { zone: { select: { id: true, name: true } } } },
+        },
       });
     });
+  }
+
+  async updateDocument(id: string, type: DocumentType, fileKey?: string) {
+    await this.prisma.partner.findUniqueOrThrow({ where: { id } }).catch(() => {
+      throw new NotFoundException('Partner not found');
+    });
+    return this.prisma.partnerDocument.upsert({
+      where: { partnerId_type: { partnerId: id, type } },
+      create: {
+        partnerId: id,
+        type,
+        fileKey,
+        uploadedAt: fileKey ? new Date() : null,
+      },
+      update: {
+        ...(fileKey ? { fileKey, uploadedAt: new Date() } : {}),
+      },
+    });
+  }
+
+  private rethrowPhoneConflict(err: unknown): unknown {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002' &&
+      (err.meta?.target as string[] | undefined)?.includes('phone')
+    ) {
+      return new ConflictException('A partner with this phone already exists');
+    }
+    return err;
   }
 }

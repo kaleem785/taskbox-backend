@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -124,10 +125,16 @@ export class ZonesService {
 
   // ── Zones ─────────────────────────────────────────────────────────────────
 
-  listZones(opts: { areaId?: string; activeOnly?: boolean } = {}) {
+  listZones(
+    opts: { areaId?: string; areaIds?: string[]; activeOnly?: boolean } = {},
+  ) {
     return this.prisma.zone.findMany({
       where: {
-        ...(opts.areaId ? { areaId: opts.areaId } : {}),
+        ...(opts.areaIds?.length
+          ? { areaId: { in: opts.areaIds } }
+          : opts.areaId
+            ? { areaId: opts.areaId }
+            : {}),
         ...(opts.activeOnly ? { active: true } : {}),
       },
       orderBy: [{ name: 'asc' }],
@@ -190,5 +197,73 @@ export class ZonesService {
 
   deactivateZone(id: string): Promise<Zone> {
     return this.prisma.zone.update({ where: { id }, data: { active: false } });
+  }
+
+  // ── Coverage validation (shared) ───────────────────────────────────────────
+
+  /**
+   * Validates a City → Areas → Zones coverage selection, the single source of
+   * truth reused by partner create/update, applicant apply, and approval.
+   *
+   * Throws BadRequestException unless:
+   *  - every selected area is active and belongs to `cityId`;
+   *  - every selected zone is active and its `areaId` is one of `areaIds`.
+   *
+   * Loads the referenced areas + zones in one query each. A `null`/empty
+   * selection is permitted (caller decides whether coverage is required).
+   */
+  async assertValidCoverage(
+    cityId: string | null | undefined,
+    areaIds: string[] = [],
+    zoneIds: string[] = [],
+  ): Promise<void> {
+    if (!areaIds.length && !zoneIds.length) return;
+
+    if (areaIds.length && !cityId) {
+      throw new BadRequestException('cityId is required when areas are selected');
+    }
+
+    const uniqueAreaIds = [...new Set(areaIds)];
+    const uniqueZoneIds = [...new Set(zoneIds)];
+
+    if (zoneIds.length && !uniqueAreaIds.length) {
+      throw new BadRequestException('At least one area must be selected to choose zones');
+    }
+
+    const areas = uniqueAreaIds.length
+      ? await this.prisma.area.findMany({
+          where: { id: { in: uniqueAreaIds } },
+          select: { id: true, cityId: true, active: true },
+        })
+      : [];
+
+    const areaById = new Map(areas.map((a) => [a.id, a]));
+    for (const id of uniqueAreaIds) {
+      const area = areaById.get(id);
+      if (!area) throw new BadRequestException(`Area ${id} not found`);
+      if (!area.active) throw new BadRequestException(`Area ${id} is inactive`);
+      if (cityId && area.cityId !== cityId) {
+        throw new BadRequestException(`Area ${id} does not belong to the selected city`);
+      }
+    }
+
+    if (uniqueZoneIds.length) {
+      const zones = await this.prisma.zone.findMany({
+        where: { id: { in: uniqueZoneIds } },
+        select: { id: true, areaId: true, active: true },
+      });
+      const zoneById = new Map(zones.map((z) => [z.id, z]));
+      const selectedAreas = new Set(uniqueAreaIds);
+      for (const id of uniqueZoneIds) {
+        const zone = zoneById.get(id);
+        if (!zone) throw new BadRequestException(`Zone ${id} not found`);
+        if (!zone.active) throw new BadRequestException(`Zone ${id} is inactive`);
+        if (!selectedAreas.has(zone.areaId)) {
+          throw new BadRequestException(
+            `Zone ${id} belongs to an area that is not selected`,
+          );
+        }
+      }
+    }
   }
 }

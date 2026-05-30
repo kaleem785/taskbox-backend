@@ -21,6 +21,9 @@ export type UploadPurpose =
   | 'verification.certificate'
   | 'verification.experience'
   | 'partner.profilePhoto'
+  | 'partner.cnicFront'
+  | 'partner.cnicBack'
+  | 'partner.certificate'
   | 'commission.proof';
 
 /** Catalog image kinds accepted by POST /uploads/catalog-image. `icon` kinds are
@@ -99,6 +102,21 @@ const PURPOSE_RULES: Record<
     prefix: (id) => `partner/${id}/profile`,
     mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp'],
     maxBytes: 3 * 1024 * 1024,
+  },
+  'partner.cnicFront': {
+    prefix: (id) => `partner/${id}/cnic-front`,
+    mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+    maxBytes: 5 * 1024 * 1024,
+  },
+  'partner.cnicBack': {
+    prefix: (id) => `partner/${id}/cnic-back`,
+    mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+    maxBytes: 5 * 1024 * 1024,
+  },
+  'partner.certificate': {
+    prefix: (id) => `partner/${id}/certificate`,
+    mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+    maxBytes: 10 * 1024 * 1024,
   },
   'commission.proof': {
     prefix: (id) => `commission/${id}/proof`,

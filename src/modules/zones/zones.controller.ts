@@ -8,7 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Role } from '../../prisma/client';
 
 import { Public } from '../../common/decorators/public.decorator';
@@ -102,12 +102,28 @@ export class ZonesController {
   // ── Zones ─────────────────────────────────────────────────────────────────
 
   @Public()
+  @ApiQuery({ name: 'areaId', required: false })
+  @ApiQuery({
+    name: 'areaIds',
+    required: false,
+    description: 'Comma-separated area IDs; returns zones for all of them in one request',
+  })
+  @ApiQuery({ name: 'activeOnly', required: false })
   @Get('zones')
   listZones(
     @Query('areaId') areaId?: string,
+    @Query('areaIds') areaIds?: string,
     @Query('activeOnly') activeOnly?: string,
   ) {
-    return this.zones.listZones({ areaId, activeOnly: activeOnly !== 'false' });
+    const parsedAreaIds = areaIds
+      ?.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return this.zones.listZones({
+      areaId,
+      areaIds: parsedAreaIds,
+      activeOnly: activeOnly !== 'false',
+    });
   }
 
   @Public()

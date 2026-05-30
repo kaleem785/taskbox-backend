@@ -12,6 +12,12 @@ export interface AppConfig {
     accessTtl: string;
     refreshTtl: string;
   };
+  applicationUpload: {
+    /** Dedicated secret for short-lived scoped upload tokens issued by POST /partners/apply. */
+    secret: string;
+    /** TTL for the scoped upload token. */
+    ttl: string;
+  };
   r2: {
     endpoint: string;
     bucket: string;
@@ -47,6 +53,14 @@ export default (): AppConfig => ({
     refreshSecret: process.env.JWT_REFRESH_SECRET ?? '',
     accessTtl: process.env.JWT_ACCESS_TTL ?? '15m',
     refreshTtl: process.env.JWT_REFRESH_TTL ?? '30d',
+  },
+  applicationUpload: {
+    // Falls back to the access secret with a namespace suffix so dev works
+    // out of the box; set a dedicated secret in production.
+    secret:
+      process.env.APPLICATION_UPLOAD_SECRET ??
+      `${process.env.JWT_ACCESS_SECRET ?? ''}:application-upload`,
+    ttl: process.env.APPLICATION_UPLOAD_TTL ?? '30m',
   },
   r2: {
     endpoint: process.env.R2_ENDPOINT ?? '',
