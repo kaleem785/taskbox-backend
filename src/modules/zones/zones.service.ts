@@ -4,8 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Area, City, Zone } from '../../prisma/client';
+import { Area, City, Prisma, Zone } from '../../prisma/client';
 
+import { buildPaginatedMeta } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAreaDto, UpdateAreaDto } from './dto/area.dto';
 import { CreateCityDto, UpdateCityDto } from './dto/city.dto';
@@ -70,12 +71,46 @@ export class ZonesService {
 
   // ── Areas ─────────────────────────────────────────────────────────────────
 
-  listAreas(opts: { cityId?: string; activeOnly?: boolean } = {}) {
+  /**
+   * Lists areas. Backward compatible: returns the plain array unless BOTH
+   * `page` and `limit` are supplied, in which case it returns the shared
+   * `Paginated<T>` envelope (`{ data, meta }`) so the admin coverage picker can
+   * page/search server-side without breaking existing array consumers.
+   */
+  async listAreas(opts: {
+    cityId?: string;
+    activeOnly?: boolean;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}) {
+    const where: Prisma.AreaWhereInput = {
+      ...(opts.cityId ? { cityId: opts.cityId } : {}),
+      ...(opts.activeOnly ? { active: true } : {}),
+      ...(opts.search
+        ? { name: { contains: opts.search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+    };
+
+    if (opts.page && opts.limit) {
+      const { page, limit } = opts;
+      const [data, total] = await this.prisma.$transaction([
+        this.prisma.area.findMany({
+          where,
+          orderBy: [{ name: 'asc' }],
+          skip: (page - 1) * limit,
+          take: limit,
+          include: {
+            city: { select: { id: true, name: true, province: true } },
+          },
+        }),
+        this.prisma.area.count({ where }),
+      ]);
+      return { data, meta: buildPaginatedMeta(page, limit, total) };
+    }
+
     return this.prisma.area.findMany({
-      where: {
-        ...(opts.cityId ? { cityId: opts.cityId } : {}),
-        ...(opts.activeOnly ? { active: true } : {}),
-      },
+      where,
       orderBy: [{ name: 'asc' }],
       include: {
         city: { select: { id: true, name: true, province: true } },
@@ -125,18 +160,56 @@ export class ZonesService {
 
   // ── Zones ─────────────────────────────────────────────────────────────────
 
-  listZones(
-    opts: { areaId?: string; areaIds?: string[]; activeOnly?: boolean } = {},
-  ) {
+  /**
+   * Lists zones. Same opt-in pagination contract as {@link listAreas}: plain
+   * array unless both `page` and `limit` are given, otherwise `Paginated<T>`.
+   * Per-area lazy loading uses the single-`areaId` path.
+   */
+  async listZones(opts: {
+    areaId?: string;
+    areaIds?: string[];
+    activeOnly?: boolean;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}) {
+    const where: Prisma.ZoneWhereInput = {
+      ...(opts.areaIds?.length
+        ? { areaId: { in: opts.areaIds } }
+        : opts.areaId
+          ? { areaId: opts.areaId }
+          : {}),
+      ...(opts.activeOnly ? { active: true } : {}),
+      ...(opts.search
+        ? { name: { contains: opts.search, mode: Prisma.QueryMode.insensitive } }
+        : {}),
+    };
+
+    if (opts.page && opts.limit) {
+      const { page, limit } = opts;
+      const [data, total] = await this.prisma.$transaction([
+        this.prisma.zone.findMany({
+          where,
+          orderBy: [{ name: 'asc' }],
+          skip: (page - 1) * limit,
+          take: limit,
+          include: {
+            area: {
+              select: {
+                id: true,
+                name: true,
+                city: { select: { id: true, name: true, province: true } },
+              },
+            },
+          },
+        }),
+        this.prisma.zone.count({ where }),
+      ]);
+      return { data, meta: buildPaginatedMeta(page, limit, total) };
+    }
+
     return this.prisma.zone.findMany({
-      where: {
-        ...(opts.areaIds?.length
-          ? { areaId: { in: opts.areaIds } }
-          : opts.areaId
-            ? { areaId: opts.areaId }
-            : {}),
-        ...(opts.activeOnly ? { active: true } : {}),
-      },
+      where,
       orderBy: [{ name: 'asc' }],
       include: {
         area: {
