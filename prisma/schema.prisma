@@ -447,7 +447,7 @@ model Partner {
   id              String               @id @default(cuid())
   name            String
   phone           String               @unique
-  email           String?
+  email           String?              @unique
   categoryId      String?
   cityId          String?
   rating          Decimal              @default(0) @db.Decimal(3, 2)
@@ -457,8 +457,8 @@ model Partner {
   joinedDate      DateTime             @default(now())
   profilePhotoKey String?
   tier            String?
-  cnic            String?
-  whatsapp        String?
+  cnic            String?              @unique
+  whatsapp        String?              @unique
   gender          String? // 'Male' | 'Female' (kept as String to match form)
   dob             DateTime?
   address         String?

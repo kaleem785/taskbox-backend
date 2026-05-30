@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { DocumentType, Partner, Prisma } from '../../prisma/client';
 
 import { buildPaginatedMeta, Paginated } from '../../common/dto/pagination.dto';
@@ -104,22 +100,20 @@ export class PartnersService {
   async create(input: CreatePartnerDto): Promise<Partner> {
     const { areaIds, zoneIds, dob, ...rest } = input;
     await this.zones.assertValidCoverage(input.cityId, areaIds, zoneIds);
-    try {
-      return await this.prisma.partner.create({
-        data: {
-          ...rest,
-          ...(dob ? { dob: new Date(dob) } : {}),
-          areas: areaIds?.length
-            ? { create: areaIds.map((areaId) => ({ areaId })) }
-            : undefined,
-          zones: zoneIds?.length
-            ? { create: zoneIds.map((zoneId) => ({ zoneId })) }
-            : undefined,
-        },
-      });
-    } catch (err) {
-      throw this.rethrowPhoneConflict(err);
-    }
+    // Unique-constraint (P2002) conflicts on phone/email/cnic/whatsapp are
+    // mapped to a friendly, field-named 409 by the global HttpExceptionFilter.
+    return this.prisma.partner.create({
+      data: {
+        ...rest,
+        ...(dob ? { dob: new Date(dob) } : {}),
+        areas: areaIds?.length
+          ? { create: areaIds.map((areaId) => ({ areaId })) }
+          : undefined,
+        zones: zoneIds?.length
+          ? { create: zoneIds.map((zoneId) => ({ zoneId })) }
+          : undefined,
+      },
+    });
   }
 
   async update(id: string, input: UpdatePartnerDto): Promise<Partner> {
@@ -134,35 +128,31 @@ export class PartnersService {
       cityId = current?.cityId ?? undefined;
     }
     await this.zones.assertValidCoverage(cityId, areaIds, zoneIds);
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const updated = await tx.partner.update({
-          where: { id },
-          data: { ...rest, ...(dob !== undefined ? { dob: dob ? new Date(dob) : null } : {}) },
-        });
-        if (areaIds) {
-          await tx.partnerArea.deleteMany({ where: { partnerId: id } });
-          if (areaIds.length) {
-            await tx.partnerArea.createMany({
-              data: areaIds.map((areaId) => ({ partnerId: id, areaId })),
-              skipDuplicates: true,
-            });
-          }
-        }
-        if (zoneIds) {
-          await tx.partnerZone.deleteMany({ where: { partnerId: id } });
-          if (zoneIds.length) {
-            await tx.partnerZone.createMany({
-              data: zoneIds.map((zoneId) => ({ partnerId: id, zoneId })),
-              skipDuplicates: true,
-            });
-          }
-        }
-        return updated;
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.partner.update({
+        where: { id },
+        data: { ...rest, ...(dob !== undefined ? { dob: dob ? new Date(dob) : null } : {}) },
       });
-    } catch (err) {
-      throw this.rethrowPhoneConflict(err);
-    }
+      if (areaIds) {
+        await tx.partnerArea.deleteMany({ where: { partnerId: id } });
+        if (areaIds.length) {
+          await tx.partnerArea.createMany({
+            data: areaIds.map((areaId) => ({ partnerId: id, areaId })),
+            skipDuplicates: true,
+          });
+        }
+      }
+      if (zoneIds) {
+        await tx.partnerZone.deleteMany({ where: { partnerId: id } });
+        if (zoneIds.length) {
+          await tx.partnerZone.createMany({
+            data: zoneIds.map((zoneId) => ({ partnerId: id, zoneId })),
+            skipDuplicates: true,
+          });
+        }
+      }
+      return updated;
+    });
   }
 
   setAvailability(id: string, availability: boolean): Promise<Partner> {
@@ -224,14 +214,4 @@ export class PartnersService {
     });
   }
 
-  private rethrowPhoneConflict(err: unknown): unknown {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === 'P2002' &&
-      (err.meta?.target as string[] | undefined)?.includes('phone')
-    ) {
-      return new ConflictException('A partner with this phone already exists');
-    }
-    return err;
-  }
 }
