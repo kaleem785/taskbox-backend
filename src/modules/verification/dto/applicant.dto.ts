@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { ApplicantExperience, ApplicantStatus, DocumentStatus, DocumentType } from '../../../prisma/client';
+import { ApplicantExperience, ApplicantStatus, DocumentStatus, DocumentType, PartnerTier } from '../../../prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -192,10 +192,10 @@ export class ApproveApplicantDto {
   @IsString({ each: true })
   zoneIds?: string[];
 
-  @ApiPropertyOptional({ enum: ['Standard', 'Premium', 'Elite'] })
+  @ApiPropertyOptional({ enum: PartnerTier })
   @IsOptional()
-  @IsString()
-  tier?: string;
+  @IsEnum(PartnerTier)
+  tier?: PartnerTier;
 }
 
 export class RejectApplicantDto {

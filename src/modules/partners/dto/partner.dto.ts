@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { ApplicantExperience } from '../../../prisma/client';
+import { ApplicantExperience, PartnerTier } from '../../../prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayUnique,
@@ -66,11 +66,10 @@ export class CreatePartnerDto {
   @IsString({ each: true })
   zoneIds?: string[];
 
-  @ApiPropertyOptional({ enum: ['Standard', 'Premium', 'Elite'] })
+  @ApiPropertyOptional({ enum: PartnerTier })
   @IsOptional()
-  @IsString()
-  @IsIn(['Standard', 'Premium', 'Elite'])
-  tier?: string;
+  @IsEnum(PartnerTier)
+  tier?: PartnerTier;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -453,10 +453,10 @@ model Partner {
   rating          Decimal              @default(0) @db.Decimal(3, 2)
   totalJobs       Int                  @default(0)
   availability    Boolean              @default(true)
-  verified        Boolean              @default(false)
+  verified        Boolean              @default(true)
   joinedDate      DateTime             @default(now())
   profilePhotoKey String?
-  tier            String?
+  tier            PartnerTier?
   cnic            String?              @unique
   whatsapp        String?              @unique
   gender          String? // 'Male' | 'Female' (kept as String to match form)
@@ -545,6 +545,14 @@ enum ApplicantExperience {
   Y1_3
   Y3_5
   Y5_PLUS
+}
+
+/// Partner service tier. PascalCase members preserve the literal values already
+/// stored on partners.tier (was a free-form String validated by @IsIn).
+enum PartnerTier {
+  Standard
+  Premium
+  Elite
 }
 
 enum DocumentType {

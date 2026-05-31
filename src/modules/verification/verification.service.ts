@@ -12,6 +12,7 @@ import {
   ApplicantStatus,
   DocumentStatus,
   DocumentType,
+  PartnerTier,
   Prisma,
 } from '../../prisma/client';
 
@@ -396,7 +397,7 @@ export class VerificationService {
             entityType: ActivityEntityType.APPLICANT,
             entityId: id,
             event: 'application.approved',
-            detail: `Approved · ${zoneIds.length} zones · tier ${input.tier ?? 'Standard'}`,
+            detail: `Approved · ${zoneIds.length} zones · tier ${input.tier ?? PartnerTier.Standard}`,
             actorUserId: actor.id,
             actorName: actor.name,
             color: '#00C853',
