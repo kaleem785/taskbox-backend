@@ -29,6 +29,9 @@ export const validationSchema = Joi.object({
   JWT_ACCESS_TTL: Joi.string().default('15m'),
   JWT_REFRESH_TTL: Joi.string().default('30d'),
 
+  APPLICATION_UPLOAD_SECRET: Joi.string().min(16).optional(),
+  APPLICATION_UPLOAD_TTL: Joi.string().default('30m'),
+
   R2_ENDPOINT: Joi.string().uri().allow('').default(''),
   R2_BUCKET: Joi.string().allow('').default(''),
   R2_ACCESS_KEY_ID: Joi.string().allow('').default(''),

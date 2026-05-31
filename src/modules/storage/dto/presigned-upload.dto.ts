@@ -9,6 +9,9 @@ export const UPLOAD_PURPOSES = [
   'verification.certificate',
   'verification.experience',
   'partner.profilePhoto',
+  'partner.cnicFront',
+  'partner.cnicBack',
+  'partner.certificate',
   'commission.proof',
 ] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];

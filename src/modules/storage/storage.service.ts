@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -21,6 +22,9 @@ export type UploadPurpose =
   | 'verification.certificate'
   | 'verification.experience'
   | 'partner.profilePhoto'
+  | 'partner.cnicFront'
+  | 'partner.cnicBack'
+  | 'partner.certificate'
   | 'commission.proof';
 
 /** Catalog image kinds accepted by POST /uploads/catalog-image. `icon` kinds are
@@ -100,6 +104,21 @@ const PURPOSE_RULES: Record<
     mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp'],
     maxBytes: 3 * 1024 * 1024,
   },
+  'partner.cnicFront': {
+    prefix: (id) => `partner/${id}/cnic-front`,
+    mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+    maxBytes: 5 * 1024 * 1024,
+  },
+  'partner.cnicBack': {
+    prefix: (id) => `partner/${id}/cnic-back`,
+    mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+    maxBytes: 5 * 1024 * 1024,
+  },
+  'partner.certificate': {
+    prefix: (id) => `partner/${id}/certificate`,
+    mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+    maxBytes: 10 * 1024 * 1024,
+  },
   'commission.proof': {
     prefix: (id) => `commission/${id}/proof`,
     mimeAllowlist: ['image/jpeg', 'image/png', 'image/webp'],
@@ -109,6 +128,10 @@ const PURPOSE_RULES: Record<
 
 const UPLOAD_TTL_SECONDS = 5 * 60;
 const DOWNLOAD_TTL_SECONDS = 5 * 60;
+
+/** Multer cap for the server-side partner upload — the largest partner rule
+ *  (certificate). The exact per-purpose limit is enforced in the service. */
+export const PARTNER_FILE_MAX_BYTES = 10 * 1024 * 1024;
 
 @Injectable()
 export class StorageService {
@@ -183,6 +206,72 @@ export class StorageService {
       expiresAt: new Date(Date.now() + UPLOAD_TTL_SECONDS * 1000).toISOString(),
       maxSize: rule.maxBytes,
     };
+  }
+
+  /**
+   * Server-side partner file upload. The browser POSTs the raw file to the API
+   * (which already allows the frontend origin), and the API streams it to R2 —
+   * avoiding a browser→R2 direct PUT, which would require bucket-level CORS.
+   *
+   * Bytes are stored as-is (no sharp normalization) so CNIC scans stay legible
+   * and PDFs pass through untouched. Mirrors the prefix/validation of the
+   * presigned flow via the shared PURPOSE_RULES. Returns the storage key.
+   */
+  async uploadPartnerFileDirect(input: {
+    buffer: Buffer;
+    mimeType: string;
+    size: number;
+    purpose: UploadPurpose;
+    entityId: string;
+    filename?: string;
+  }): Promise<{ key: string }> {
+    const rule = PURPOSE_RULES[input.purpose];
+    if (!rule) throw new BadRequestException(`Unknown purpose: ${input.purpose}`);
+    if (!rule.mimeAllowlist.includes(input.mimeType)) {
+      throw new BadRequestException(
+        `mimeType not allowed for ${input.purpose}: ${input.mimeType}`,
+      );
+    }
+    if (input.size > rule.maxBytes) {
+      throw new BadRequestException(
+        `File exceeds max size for ${input.purpose}: ${rule.maxBytes} bytes`,
+      );
+    }
+    if (!this.client) {
+      throw new InternalServerErrorException('Object storage not configured');
+    }
+
+    const ext = guessExtension(input.mimeType, input.filename);
+    const key = `${rule.prefix(input.entityId)}-${randomUUID()}${ext}`;
+
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: input.buffer,
+        ContentType: input.mimeType,
+        ContentLength: input.size,
+      }),
+    );
+
+    return { key };
+  }
+
+  /**
+   * Deletes a partner file from R2 by storage key. Scoped to `partner/*` keys so
+   * an admin action can't remove unrelated objects (catalog, verification, etc.).
+   * Idempotent: R2 returns success even if the key no longer exists.
+   */
+  async deletePartnerFile(key: string): Promise<void> {
+    if (!key.startsWith('partner/')) {
+      throw new BadRequestException('Only partner/* files can be deleted here.');
+    }
+    if (!this.client) {
+      throw new InternalServerErrorException('Object storage not configured');
+    }
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
   }
 
   /**

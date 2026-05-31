@@ -1,9 +1,8 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { ApplicantExperience, ApplicantStatus, DocumentStatus, DocumentType } from '../../../prisma/client';
+import { ApplicantExperience, ApplicantStatus, DocumentStatus, DocumentType, PartnerTier } from '../../../prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   ArrayUnique,
   IsArray,
   IsBoolean,
@@ -61,6 +60,20 @@ export class CreateApplicantDto {
   @IsOptional()
   @IsString()
   source?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'Desired area coverage' })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  areaIds?: string[];
+
+  @ApiPropertyOptional({ type: [String], description: 'Desired zone coverage' })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  zoneIds?: string[];
 }
 
 export class UpdateApplicantDto extends PartialType(CreateApplicantDto) {}
@@ -157,18 +170,32 @@ export class ScoreTestDto {
 }
 
 export class ApproveApplicantDto {
-  @ApiProperty({ type: [String] })
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Area coverage; defaults to the applicant\'s submitted areas',
+  })
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(20)
+  @ArrayMaxSize(50)
   @ArrayUnique()
   @IsString({ each: true })
-  zoneIds!: string[];
+  areaIds?: string[];
 
-  @ApiPropertyOptional({ enum: ['Standard', 'Premium', 'Elite'] })
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Zone coverage; defaults to the applicant\'s submitted zones',
+  })
   @IsOptional()
-  @IsString()
-  tier?: string;
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ArrayUnique()
+  @IsString({ each: true })
+  zoneIds?: string[];
+
+  @ApiPropertyOptional({ enum: PartnerTier })
+  @IsOptional()
+  @IsEnum(PartnerTier)
+  tier?: PartnerTier;
 }
 
 export class RejectApplicantDto {

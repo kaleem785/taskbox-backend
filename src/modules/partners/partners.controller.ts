@@ -8,13 +8,14 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from '../../prisma/client';
+import { DocumentType, Role } from '../../prisma/client';
 
 import { Roles } from '../../common/decorators/roles.decorator';
 import {
   AssignZonesDto,
   CreatePartnerDto,
   ToggleAvailabilityDto,
+  UpdatePartnerDocumentDto,
   UpdatePartnerDto,
 } from './dto/partner.dto';
 import { PartnerQueryDto } from './dto/partner-query.dto';
@@ -65,6 +66,15 @@ export class PartnersController {
 
   @Patch(':id/zones')
   assignZones(@Param('id') id: string, @Body() dto: AssignZonesDto) {
-    return this.partners.assignZones(id, dto.zoneIds);
+    return this.partners.assignCoverage(id, dto.areaIds ?? [], dto.zoneIds);
+  }
+
+  @Patch(':id/documents/:type')
+  updateDocument(
+    @Param('id') id: string,
+    @Param('type') type: DocumentType,
+    @Body() dto: UpdatePartnerDocumentDto,
+  ) {
+    return this.partners.updateDocument(id, type, dto.fileKey);
   }
 }

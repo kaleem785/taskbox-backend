@@ -13,9 +13,9 @@ import { Role } from '../../prisma/client';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { CreateAreaDto, UpdateAreaDto } from './dto/area.dto';
+import { AreaQueryDto, CreateAreaDto, UpdateAreaDto } from './dto/area.dto';
 import { CreateCityDto, UpdateCityDto } from './dto/city.dto';
-import { CreateZoneDto, UpdateZoneDto } from './dto/zone.dto';
+import { CreateZoneDto, UpdateZoneDto, ZoneQueryDto } from './dto/zone.dto';
 import { ZonesService } from './zones.service';
 
 @ApiTags('zones')
@@ -65,11 +65,14 @@ export class ZonesController {
 
   @Public()
   @Get('areas')
-  listAreas(
-    @Query('cityId') cityId?: string,
-    @Query('activeOnly') activeOnly?: string,
-  ) {
-    return this.zones.listAreas({ cityId, activeOnly: activeOnly !== 'false' });
+  listAreas(@Query() q: AreaQueryDto) {
+    return this.zones.listAreas({
+      cityId: q.cityId,
+      search: q.search,
+      activeOnly: q.activeOnly !== 'false',
+      page: q.page,
+      limit: q.limit,
+    });
   }
 
   @Public()
@@ -103,11 +106,19 @@ export class ZonesController {
 
   @Public()
   @Get('zones')
-  listZones(
-    @Query('areaId') areaId?: string,
-    @Query('activeOnly') activeOnly?: string,
-  ) {
-    return this.zones.listZones({ areaId, activeOnly: activeOnly !== 'false' });
+  listZones(@Query() q: ZoneQueryDto) {
+    const parsedAreaIds = q.areaIds
+      ?.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return this.zones.listZones({
+      areaId: q.areaId,
+      areaIds: parsedAreaIds,
+      search: q.search,
+      activeOnly: q.activeOnly !== 'false',
+      page: q.page,
+      limit: q.limit,
+    });
   }
 
   @Public()

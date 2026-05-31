@@ -16,7 +16,17 @@ interface ErrorBody {
   path: string;
   timestamp: string;
   requestId?: string;
+  /** The conflicting field for a unique-constraint (409) error, when known. */
+  field?: string;
 }
+
+/** Unique fields we surface a friendly, field-named message for. */
+const UNIQUE_FIELD_LABELS: Record<string, string> = {
+  phone: 'phone number',
+  email: 'email address',
+  cnic: 'CNIC',
+  whatsapp: 'WhatsApp number',
+};
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -27,7 +37,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request & { id?: string }>();
 
-    const { status, message, error } = this.normalize(exception);
+    const { status, message, error, field } = this.normalize(exception);
 
     const body: ErrorBody = {
       statusCode: status,
@@ -36,6 +46,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       path: request.url,
       timestamp: new Date().toISOString(),
       requestId: request.id,
+      ...(field ? { field } : {}),
     };
 
     if (status >= 500) {
@@ -49,6 +60,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     status: number;
     message: string | string[];
     error: string;
+    field?: string;
   } {
     if (exception instanceof HttpException) {
       const response = exception.getResponse();
@@ -87,16 +99,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
     status: number;
     message: string;
     error: string;
+    field?: string;
   } {
     switch (err.code) {
-      case 'P2002':
+      case 'P2002': {
+        const field = this.resolveUniqueField(err);
+        const label = field ? UNIQUE_FIELD_LABELS[field] : undefined;
         return {
           status: HttpStatus.CONFLICT,
-          message: `Unique constraint failed on: ${
-            (err.meta?.target as string[] | undefined)?.join(', ') ?? 'field'
-          }`,
+          message: label
+            ? `A partner with this ${label} already exists.`
+            : 'A record with these details already exists.',
           error: 'Conflict',
+          ...(field ? { field } : {}),
         };
+      }
       case 'P2025':
         return {
           status: HttpStatus.NOT_FOUND,
@@ -116,5 +133,41 @@ export class HttpExceptionFilter implements ExceptionFilter {
           error: 'PrismaError',
         };
     }
+  }
+
+  /**
+   * Find the conflicting unique field from a P2002 error across Prisma engines:
+   *  - Prisma 7 driver adapter:
+   *      meta.driverAdapterError.cause.constraint.fields = ['email']
+   *      (constraint name also in cause.originalMessage, e.g. 'partners_email_key')
+   *  - Library engine / older: meta.target = ['email'] or 'partners_email_key'
+   * Returns the first known unique field referenced, else undefined.
+   */
+  private resolveUniqueField(
+    err: Prisma.PrismaClientKnownRequestError,
+  ): string | undefined {
+    const known = Object.keys(UNIQUE_FIELD_LABELS);
+    const meta = (err.meta ?? {}) as Record<string, unknown>;
+    const cause = (meta.driverAdapterError as { cause?: Record<string, unknown> })
+      ?.cause;
+    const constraintFields = (cause?.constraint as { fields?: string[] })?.fields;
+
+    const candidates: string[] = [
+      ...(Array.isArray(constraintFields) ? constraintFields : []),
+      ...(Array.isArray(meta.target)
+        ? (meta.target as string[])
+        : typeof meta.target === 'string'
+          ? [meta.target]
+          : []),
+      ...(typeof cause?.originalMessage === 'string'
+        ? [cause.originalMessage as string]
+        : []),
+    ];
+
+    for (const candidate of candidates) {
+      const match = known.find((f) => candidate === f || candidate.includes(f));
+      if (match) return match;
+    }
+    return undefined;
   }
 }

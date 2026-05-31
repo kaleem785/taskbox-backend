@@ -1,10 +1,14 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApplicantExperience, PartnerTier } from '../../../prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEmail,
+  IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -48,6 +52,13 @@ export class CreatePartnerDto {
   @IsBoolean()
   verified?: boolean;
 
+  @ApiPropertyOptional({ type: [String], description: 'Area IDs covered (coverage filter)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  areaIds?: string[];
+
   @ApiPropertyOptional({ type: [String], description: 'Initial zone IDs to assign' })
   @IsOptional()
   @IsArray()
@@ -55,15 +66,46 @@ export class CreatePartnerDto {
   @IsString({ each: true })
   zoneIds?: string[];
 
-  @ApiPropertyOptional({ enum: ['Standard', 'Premium', 'Elite'] })
+  @ApiPropertyOptional({ enum: PartnerTier })
   @IsOptional()
-  @IsString()
-  tier?: string;
+  @IsEnum(PartnerTier)
+  tier?: PartnerTier;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   profilePhotoKey?: string;
+
+  @ApiPropertyOptional({ description: 'CNIC number' })
+  @IsOptional()
+  @IsString()
+  cnic?: string;
+
+  @ApiPropertyOptional({ example: '+923011112222' })
+  @IsOptional()
+  @IsString()
+  whatsapp?: string;
+
+  @ApiPropertyOptional({ enum: ['Male', 'Female'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['Male', 'Female'])
+  gender?: string;
+
+  @ApiPropertyOptional({ description: 'Date of birth (ISO date)' })
+  @IsOptional()
+  @IsDateString()
+  dob?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @ApiPropertyOptional({ enum: ApplicantExperience })
+  @IsOptional()
+  @IsEnum(ApplicantExperience)
+  experience?: ApplicantExperience;
 }
 
 export class UpdatePartnerDto extends PartialType(CreatePartnerDto) {
@@ -83,9 +125,23 @@ export class ToggleAvailabilityDto {
 }
 
 export class AssignZonesDto {
+  @ApiPropertyOptional({ type: [String], description: 'Area IDs covered (coverage filter)' })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  areaIds?: string[];
+
   @ApiProperty({ type: [String] })
   @IsArray()
   @ArrayUnique()
   @IsString({ each: true })
   zoneIds!: string[];
+}
+
+export class UpdatePartnerDocumentDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  fileKey?: string;
 }
