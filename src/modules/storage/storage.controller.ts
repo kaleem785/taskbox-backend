@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseFilePipeBuilder,
@@ -27,10 +28,15 @@ import { Role } from '../../prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PresignedUploadDto } from './dto/presigned-upload.dto';
 import {
+  DeletePartnerFileDto,
+  PartnerFileUploadDto,
+} from './dto/partner-file-upload.dto';
+import {
   CATALOG_IMAGE_KINDS,
   CATALOG_IMAGE_MAX_BYTES,
   CATALOG_IMAGE_MIME_ALLOWLIST,
   CatalogImageKind,
+  PARTNER_FILE_MAX_BYTES,
   StorageService,
 } from './storage.service';
 
@@ -52,6 +58,63 @@ export class StorageController {
       size: dto.size,
       filename: dto.filename,
     });
+  }
+
+  /**
+   * Server-side partner file upload (profile photo / CNIC front-back /
+   * certificate). The browser POSTs the raw file here and the API streams it to
+   * R2 — no browser→R2 direct PUT, so no bucket CORS is required. Returns the
+   * storage key to persist on the partner / PartnerDocument row.
+   *
+   * Admin-only. Send `multipart/form-data` with a `file` part plus `purpose`
+   * and `entityId` fields.
+   */
+  @Roles(Role.ADMIN)
+  @Post('partner-file')
+  @ApiOperation({
+    summary:
+      'Upload a partner file (profile / CNIC / certificate) server-side to R2; returns the storage key',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file', 'purpose', 'entityId'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        purpose: { type: 'string' },
+        entityId: { type: 'string' },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: PARTNER_FILE_MAX_BYTES } }),
+  )
+  async uploadPartnerFile(
+    @UploadedFile(new ParseFilePipeBuilder().build({ fileIsRequired: true }))
+    file: Express.Multer.File,
+    @Body() body: PartnerFileUploadDto,
+  ) {
+    return this.storage.uploadPartnerFileDirect({
+      buffer: file.buffer,
+      mimeType: file.mimetype,
+      size: file.size,
+      purpose: body.purpose,
+      entityId: body.entityId,
+      filename: file.originalname,
+    });
+  }
+
+  /**
+   * Delete a partner file from R2 by storage key (e.g. when an admin removes a
+   * picked-but-not-yet-saved upload). Admin-only; scoped to partner/* keys.
+   */
+  @Roles(Role.ADMIN)
+  @Delete('partner-file')
+  @ApiOperation({ summary: 'Delete a partner file from R2 by storage key' })
+  async deletePartnerFile(@Body() body: DeletePartnerFileDto) {
+    await this.storage.deletePartnerFile(body.key);
+    return { deleted: true };
   }
 
   @Roles(Role.ADMIN, Role.EXAMINER)
